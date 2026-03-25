@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tech.done.adsdk.core.DefaultAdEngine
 import tech.done.adsdk.network.NetworkLayer
 import tech.done.adsdk.parser.impl.VastPullParser
@@ -69,6 +70,29 @@ class Media3AdsLoader(
         }
     }
 
+    /**
+     * IMA-like API: only a single adTagUri is provided.
+     *
+     * The SDK will fetch it, detect whether it is VMAP or VAST, and then start playback accordingly.
+     */
+    fun requestAds(adTagUri: String, timeoutMs: Long = 10_000L) {
+        val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setPlayerView/setAdDisplayContainer first.")
+        scope.launch(network.dispatcher) {
+            val resp = network.get(adTagUri, timeoutMs = timeoutMs)
+            if (!resp.isSuccessful) error("Failed to load adTagUri. code=${resp.code} url=$adTagUri")
+            val xml = resp.body.orEmpty()
+            val kind = detectXmlKind(xml)
+            val vmapXml = when (kind) {
+                XmlKind.Vmap -> xml
+                XmlKind.Vast -> vastToPrerollVmap(xml)
+                XmlKind.Unknown -> error("Unknown ad response. Expected VMAP or VAST. url=$adTagUri")
+            }
+            withContext(Dispatchers.Main.immediate) {
+                e.loadVmap(vmapXml)
+            }
+        }
+    }
+
     fun start() {
         val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setPlayerView/setAdDisplayContainer first.")
         e.start()
@@ -102,6 +126,40 @@ class Media3AdsLoader(
             tracking = tracking,
             mainDispatcher = Dispatchers.Main,
         ).apply { initialize() }
+    }
+
+    private enum class XmlKind { Vmap, Vast, Unknown }
+
+    private fun detectXmlKind(xml: String): XmlKind {
+        // Find the first element name (skip XML prolog/whitespace/comments).
+        val re = Regex("<\\s*([A-Za-z0-9_:-]+)(?=[\\s>/])")
+        val m = re.find(xml) ?: return XmlKind.Unknown
+        val tag = m.groupValues.getOrNull(1).orEmpty().substringAfter(':')
+        return when (tag) {
+            "VMAP" -> XmlKind.Vmap
+            "VAST" -> XmlKind.Vast
+            else -> XmlKind.Unknown
+        }
+    }
+
+    private fun vastToPrerollVmap(vastXml: String): String {
+        val vast = vastXml
+            .trimStart()
+            .removePrefix("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
+            .removePrefix("<?xml version='1.0' encoding='UTF-8'?>")
+            .trimStart()
+
+        return """
+            <vmap:VMAP xmlns:vmap="http://www.iab.net/videosuite/vmap" version="1.0">
+              <vmap:AdBreak breakType="linear" timeOffset="00:00:00" breakId="preroll-1">
+                <vmap:AdSource allowMultipleAds="false" followRedirects="true">
+                  <vmap:VASTAdData>
+                    $vast
+                  </vmap:VASTAdData>
+                </vmap:AdSource>
+              </vmap:AdBreak>
+            </vmap:VMAP>
+        """.trimIndent()
     }
 }
 

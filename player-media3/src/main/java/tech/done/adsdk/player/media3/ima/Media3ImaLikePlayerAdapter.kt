@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import tech.done.adsdk.player.media3.ima.internal.AdOverlayView
 import tech.done.adsdk.player.PlayerAdapter
 import tech.done.adsdk.player.PlayerListener
 import tech.done.adsdk.player.PlayerState
@@ -45,6 +46,10 @@ internal class Media3ImaLikePlayerAdapter(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
         )
+    }
+
+    private val adOverlayView: AdOverlayView = AdOverlayView(adDisplayContainer.context).apply {
+        onSkip = { endAdAndResumeContent() }
     }
 
     private val _state = MutableStateFlow(PlayerState())
@@ -104,7 +109,7 @@ internal class Media3ImaLikePlayerAdapter(
     init {
         contentPlayer.addListener(contentListener)
         adPlayer.addListener(adListener)
-        ensureAdViewAdded()
+        ensureAdViewsAdded()
         startPolling()
     }
 
@@ -113,17 +118,24 @@ internal class Media3ImaLikePlayerAdapter(
         runCatching { contentPlayer.removeListener(contentListener) }
         runCatching { adPlayer.removeListener(adListener) }
         runCatching { (adPlayerView.parent as? ViewGroup)?.removeView(adPlayerView) }
+        runCatching { (adOverlayView.parent as? ViewGroup)?.removeView(adOverlayView) }
         runCatching { adPlayer.release() }
     }
 
-    private fun ensureAdViewAdded() {
-        if (adPlayerView.parent == adDisplayContainer) return
-        (adPlayerView.parent as? ViewGroup)?.removeView(adPlayerView)
-        adDisplayContainer.addView(adPlayerView)
+    private fun ensureAdViewsAdded() {
+        if (adPlayerView.parent != adDisplayContainer) {
+            (adPlayerView.parent as? ViewGroup)?.removeView(adPlayerView)
+            adDisplayContainer.addView(adPlayerView)
+        }
+
+        if (adOverlayView.parent != adDisplayContainer) {
+            (adOverlayView.parent as? ViewGroup)?.removeView(adOverlayView)
+            adDisplayContainer.addView(adOverlayView)
+        }
     }
 
     private fun startAd(mediaUri: String) {
-        ensureAdViewAdded()
+        ensureAdViewsAdded()
 
         if (!_state.value.isInAd) {
             savedContentItem = contentPlayer.currentMediaItem
@@ -138,6 +150,7 @@ internal class Media3ImaLikePlayerAdapter(
         suppressContentControllers(true)
 
         adPlayerView.visibility = View.VISIBLE
+        adOverlayView.setVisible(true)
         _state.value = _state.value.copy(isInAd = true, adPositionMs = 0L, adDurationMs = null, isPlaying = false)
 
         adPlayer.setMediaItem(MediaItem.fromUri(mediaUri))
@@ -152,6 +165,7 @@ internal class Media3ImaLikePlayerAdapter(
         adPlayer.stop()
         adPlayer.clearMediaItems()
         adPlayerView.visibility = View.GONE
+        adOverlayView.setVisible(false)
 
         suppressContentControllers(false)
 
@@ -191,11 +205,13 @@ internal class Media3ImaLikePlayerAdapter(
                     val pos = adPlayer.currentPosition
                     val dur = adPlayer.duration.takeIf { it > 0 }
                     _state.value = _state.value.copy(adPositionMs = pos, adDurationMs = dur)
+                    adOverlayView.render(inAd = true, adPositionMs = pos, adDurationMs = dur)
                     listeners.forEach { it.onAdProgress(pos, dur) }
                 } else {
                     val pos = contentPlayer.currentPosition
                     val dur = contentPlayer.duration.takeIf { it > 0 }
                     _state.value = _state.value.copy(contentPositionMs = pos, contentDurationMs = dur)
+                    adOverlayView.render(inAd = false, adPositionMs = 0L, adDurationMs = null)
                 }
                 delay(pollIntervalMs)
             }

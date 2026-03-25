@@ -8,19 +8,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.MainScope
 import tech.done.adsdk.player.media3.ima.AdDisplayContainerView
 import tech.done.adsdk.player.media3.ima.Media3AdsLoader
 import tech.done.adsdk.tracking.RetryingTrackingEngine
-import tech.done.adsdk.ui.compose.AdOverlay
-import tech.done.adsdk.ui.compose.AdUiState
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.MainScope
-import kotlin.math.ceil
+import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
 
@@ -46,26 +42,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    // Keep the ad overlay UI driven by SDK engine/player state.
-                    // For sample simplicity we reuse our existing AdOverlay from player state, but the IMA-like integration
-                    // focuses on the "view + loader" API (no app-side controller hacks).
-                    val playerState = remember { tech.done.adsdk.player.PlayerState() }
-
-                    val adUi = if (playerState.isInAd) {
-                        val remaining = playerState.adDurationMs?.let { dur ->
-                            val remMs = (dur - playerState.adPositionMs).coerceAtLeast(0L)
-                            ceil(remMs / 1000.0).toInt()
-                        }
-                        AdUiState(
-                            visible = true,
-                            canSkip = playerState.adPositionMs >= 3_000L,
-                            skipInSeconds = if (playerState.adPositionMs >= 3_000L) null else ceil((3_000L - playerState.adPositionMs).coerceAtLeast(0L) / 1000.0).toInt(),
-                            remainingSeconds = remaining,
-                            adIndex = 1,
-                            adCount = 1,
-                        )
-                    } else AdUiState(visible = false)
-
                     Box(modifier = Modifier.fillMaxSize()) {
                         AndroidView(
                             modifier = Modifier.fillMaxSize(),
@@ -81,25 +57,26 @@ class MainActivity : ComponentActivity() {
                         AndroidView(
                             modifier = Modifier.fillMaxSize(),
                             factory = { ctx ->
-                                AdDisplayContainerView(ctx).also { adsLoader.setAdDisplayContainer(it) }
+                                AdDisplayContainerView(ctx).also {
+                                    adsLoader.setAdDisplayContainer(
+                                        it
+                                    )
+                                }
                             },
                         )
 
-                        AdOverlay(
-                            state = adUi,
-                            onSkip = {
-                                // Minimal skip: resume content immediately.
-                                // In full IMA-like API this would call adsLoader / ad manager.
-                            },
-                        )
+                        // No ad UI in the app. SDK renders overlay inside AdDisplayContainerView (IMA-like).
                     }
 
                     LaunchedEffect(Unit) {
                         if (System.getProperty("adsdk.debug") == "true") {
                             println("AdSDK/Sample D loading VMAP from res/raw/sample_vmap.xml")
                         }
-                        val vmapXml = resources.openRawResource(R.raw.sample_vmap).bufferedReader().use { it.readText() }
-                        adsLoader.requestAdsFromVmapXml(vmapXml)
+                        val adTagUri = listOf(
+                            "https://ads.kianoosh.dev/ads/ads",
+                            "https://ads.kianoosh.dev/ads/vast",
+                        )[Random.nextInt(1)]
+                        adsLoader.requestAds(adTagUri)
                         adsLoader.start()
                     }
                 }

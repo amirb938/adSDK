@@ -6,6 +6,8 @@ import tech.done.adsdk.network.NetworkResponse
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 
 class SampleNetworkLayer(
     private val context: Context,
@@ -30,9 +32,34 @@ class SampleNetworkLayer(
             return@withContext NetworkResponse(code = 200, body = body)
         }
 
-        // For demo video media URIs etc: do not fetch bodies here.
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = true
+                requestMethod = "GET"
+                connectTimeout = (timeoutMs ?: 10_000L).toInt()
+                readTimeout = (timeoutMs ?: 10_000L).toInt()
+                headers.forEach { (k, v) -> setRequestProperty(k, v) }
+            }
+            return@withContext try {
+                val code = conn.responseCode
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }
+                if (System.getProperty("adsdk.debug") == "true") {
+                    println("AdSDK/Network(Sample) D $code bytes=${body?.length ?: 0}")
+                }
+                NetworkResponse(code = code, body = body, headers = emptyMap())
+            } catch (t: Throwable) {
+                if (System.getProperty("adsdk.debug") == "true") {
+                    println("AdSDK/Network(Sample) E fetch failed url=$url err=${t.message}")
+                }
+                NetworkResponse(code = 599, body = null)
+            } finally {
+                runCatching { conn.disconnect() }
+            }
+        }
+
         if (System.getProperty("adsdk.debug") == "true") {
-            println("AdSDK/Network(Sample) W 204 (no fetch implementation for this url)")
+            println("AdSDK/Network(Sample) W 204 (unsupported scheme)")
         }
         return@withContext NetworkResponse(code = 204, body = null)
     }

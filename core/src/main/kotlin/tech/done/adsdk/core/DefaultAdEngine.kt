@@ -99,6 +99,16 @@ class DefaultAdEngine(
         prerollFired = false
         postrollFired = false
         _state.value = _state.value.copy(loaded = true, lastError = null)
+
+        // Important: requestAds/adTagUri can be loaded asynchronously after start().
+        // If we are already running, trigger preroll immediately after timeline becomes available.
+        if (_state.value.phase == AdState.Phase.Running && !prerollFired && built.preroll.isNotEmpty()) {
+            scope.launch {
+                AdSdkDebugLog.d(logTag, "Triggering preroll after loadVmap breaks=${built.preroll.size}")
+                playBreaksSequentially(built.preroll)
+                prerollFired = true
+            }
+        }
     }
 
     override fun initialize() {

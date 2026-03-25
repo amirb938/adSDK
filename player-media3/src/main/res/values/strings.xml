@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="adsdk_skip">Skip</string>
+    <string name="adsdk_ad_remaining_seconds">Ad · %1$d s</string>
+    <string name="adsdk_ad_skip_in_seconds">Skip in %1$d s</string>
+</resources>
+
