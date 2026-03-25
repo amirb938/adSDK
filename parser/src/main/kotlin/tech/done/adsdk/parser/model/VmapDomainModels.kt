@@ -10,6 +10,7 @@ data class AdBreak(
     val position: Position,
     val timeOffsetMs: Long? = null,
     val vastAdTagUri: String? = null,
+    val vastInlineXml: String? = null,
 )
 
 enum class Position {

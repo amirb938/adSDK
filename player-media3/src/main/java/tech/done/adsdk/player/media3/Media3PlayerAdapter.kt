@@ -7,6 +7,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import tech.done.adsdk.player.PlayerAdapter
 import tech.done.adsdk.player.PlayerListener
 import tech.done.adsdk.player.PlayerState
+import tech.done.adsdk.player.media3.internal.AdSdkDebugLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -20,6 +21,7 @@ class Media3PlayerAdapter(
     private val scope: CoroutineScope,
     private val pollIntervalMs: Long = 250L,
 ) : PlayerAdapter {
+    private val logTag = "Player/Media3"
 
     private val listeners = LinkedHashSet<PlayerListener>()
 
@@ -34,16 +36,24 @@ class Media3PlayerAdapter(
 
     private val media3Listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            AdSdkDebugLog.d(logTag, "onIsPlayingChanged=$isPlaying inAd=${_state.value.isInAd}")
             _state.value = _state.value.copy(isPlaying = isPlaying)
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
-            if (playbackState == Player.STATE_ENDED && !_state.value.isInAd) {
-                listeners.forEach { it.onContentEnded() }
+            AdSdkDebugLog.d(logTag, "onPlaybackStateChanged=$playbackState inAd=${_state.value.isInAd}")
+            if (playbackState == Player.STATE_ENDED) {
+                if (_state.value.isInAd) {
+                    AdSdkDebugLog.d(logTag, "ad ended (STATE_ENDED)")
+                    listeners.forEach { it.onAdEnded() }
+                } else {
+                    listeners.forEach { it.onContentEnded() }
+                }
             }
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            AdSdkDebugLog.e(logTag, "onPlayerError inAd=${_state.value.isInAd}", error)
             listeners.forEach { it.onPlayerError(error) }
         }
     }
@@ -67,9 +77,11 @@ class Media3PlayerAdapter(
     }
 
     override fun playAd(mediaUri: String) {
+        AdSdkDebugLog.d(logTag, "playAd mediaUri=$mediaUri (wasInAd=${_state.value.isInAd})")
         if (!_state.value.isInAd) {
             contentItem = player.currentMediaItem
             contentPositionMs = player.currentPosition
+            AdSdkDebugLog.d(logTag, "saved content positionMs=$contentPositionMs item=${contentItem?.mediaId}")
         }
 
         _state.value = _state.value.copy(isInAd = true, adPositionMs = 0L, adDurationMs = null)
@@ -81,6 +93,7 @@ class Media3PlayerAdapter(
 
     override fun resumeContent() {
         val item = contentItem ?: return
+        AdSdkDebugLog.d(logTag, "resumeContent seekToMs=$contentPositionMs item=${item.mediaId}")
         _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null)
 
         player.setMediaItem(item)

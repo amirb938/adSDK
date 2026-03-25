@@ -8,17 +8,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import tech.done.adsdk.core.DefaultAdEngine
-import tech.done.adsdk.parser.impl.VastPullParser
-import tech.done.adsdk.parser.impl.VmapPullParser
-import tech.done.adsdk.player.media3.Media3PlayerAdapter
-import tech.done.adsdk.scheduler.VmapScheduler
+import tech.done.adsdk.player.media3.ima.AdDisplayContainerView
+import tech.done.adsdk.player.media3.ima.Media3AdsLoader
 import tech.done.adsdk.tracking.RetryingTrackingEngine
 import tech.done.adsdk.ui.compose.AdOverlay
 import tech.done.adsdk.ui.compose.AdUiState
@@ -33,31 +29,27 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Enable ultra-verbose AdSDK logs (println -> Logcat).
+        System.setProperty("adsdk.debug", "true")
+
         val exo = ExoPlayer.Builder(this).build().apply {
             // Sample content
-            setMediaItem(androidx.media3.common.MediaItem.fromUri("https://amirb938.s3.ir-thr-at1.arvanstorage.ir/ReorderApp.mp4"))
+            setMediaItem(androidx.media3.common.MediaItem.fromUri("https://dls5.iran-gamecenter-host.com/DonyayeSerial/series/Vikings/Dubbed/S02/480p.BluRay/Vikings.S02E09.480p.Farsi.Dubbed.DonyayeSerial.mkv"))
             prepare()
             playWhenReady = true
         }
 
-        val playerAdapter = Media3PlayerAdapter(exo, scope)
         val network = SampleNetworkLayer(this)
         val tracking = RetryingTrackingEngine(network)
-
-        val engine = DefaultAdEngine(
-            player = playerAdapter,
-            vmapParser = VmapPullParser(),
-            vastParser = VastPullParser(),
-            scheduler = VmapScheduler(),
-            network = network,
-            tracking = tracking,
-            mainDispatcher = Dispatchers.Main,
-        ).apply { initialize() }
+        val adsLoader = Media3AdsLoader(network = network, tracking = tracking, scope = scope)
 
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    val playerState by playerAdapter.state.collectAsState()
+                    // Keep the ad overlay UI driven by SDK engine/player state.
+                    // For sample simplicity we reuse our existing AdOverlay from player state, but the IMA-like integration
+                    // focuses on the "view + loader" API (no app-side controller hacks).
+                    val playerState = remember { tech.done.adsdk.player.PlayerState() }
 
                     val adUi = if (playerState.isInAd) {
                         val remaining = playerState.adDurationMs?.let { dur ->
@@ -78,7 +70,18 @@ class MainActivity : ComponentActivity() {
                         AndroidView(
                             modifier = Modifier.fillMaxSize(),
                             factory = { ctx ->
-                                PlayerView(ctx).apply { player = exo }
+                                PlayerView(ctx).apply {
+                                    player = exo
+                                    adsLoader.setPlayer(exo)
+                                    adsLoader.setPlayerView(this)
+                                }
+                            },
+                        )
+
+                        AndroidView(
+                            modifier = Modifier.fillMaxSize(),
+                            factory = { ctx ->
+                                AdDisplayContainerView(ctx).also { adsLoader.setAdDisplayContainer(it) }
                             },
                         )
 
@@ -86,15 +89,18 @@ class MainActivity : ComponentActivity() {
                             state = adUi,
                             onSkip = {
                                 // Minimal skip: resume content immediately.
-                                playerAdapter.resumeContent()
+                                // In full IMA-like API this would call adsLoader / ad manager.
                             },
                         )
                     }
 
                     LaunchedEffect(Unit) {
+                        if (System.getProperty("adsdk.debug") == "true") {
+                            println("AdSDK/Sample D loading VMAP from res/raw/sample_vmap.xml")
+                        }
                         val vmapXml = resources.openRawResource(R.raw.sample_vmap).bufferedReader().use { it.readText() }
-                        engine.loadVmap(vmapXml)
-                        engine.start()
+                        adsLoader.requestAdsFromVmapXml(vmapXml)
+                        adsLoader.start()
                     }
                 }
             }

@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -41,7 +42,7 @@ fun AdOverlay(
 
         Column(
             modifier = Modifier
-                .align(Alignment.TopStart)
+                .align(Alignment.BottomStart)
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -68,7 +69,7 @@ fun AdOverlay(
 
         Row(
             modifier = Modifier
-                .align(Alignment.TopEnd)
+                .align(Alignment.BottomEnd)
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -87,6 +88,40 @@ fun AdOverlay(
             }
             Spacer(modifier = Modifier.width(0.dp))
         }
+    }
+}
+
+@Preview(showBackground = true, name = "AdOverlay - can skip")
+@Composable
+private fun AdOverlayPreviewCanSkip() {
+    MaterialTheme {
+        AdOverlay(
+            state = AdUiState(
+                visible = true,
+                canSkip = true,
+                skipInSeconds = null,
+                remainingSeconds = 7,
+                adIndex = 1,
+                adCount = 2,
+            ),
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "AdOverlay - countdown")
+@Composable
+private fun AdOverlayPreviewCountdown() {
+    MaterialTheme {
+        AdOverlay(
+            state = AdUiState(
+                visible = true,
+                canSkip = false,
+                skipInSeconds = 3,
+                remainingSeconds = 12,
+                adIndex = 1,
+                adCount = 1,
+            ),
+        )
     }
 }
 

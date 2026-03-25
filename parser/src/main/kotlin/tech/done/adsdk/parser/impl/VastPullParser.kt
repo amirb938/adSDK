@@ -4,6 +4,7 @@ import tech.done.adsdk.parser.VastParser
 import tech.done.adsdk.parser.VastWrapperFetcher
 import tech.done.adsdk.parser.error.VastParseError
 import tech.done.adsdk.parser.error.XmlParseError
+import tech.done.adsdk.parser.internal.AdSdkDebugLog
 import tech.done.adsdk.parser.internal.attr
 import tech.done.adsdk.parser.internal.parseVastTimeToMs
 import tech.done.adsdk.parser.internal.readText
@@ -21,6 +22,7 @@ class VastPullParser(
 ) : VastParser {
 
     override suspend fun parse(xml: String, wrapperFetcher: VastWrapperFetcher?): List<VastAd> {
+        AdSdkDebugLog.d("Parser/VAST", "parse xmlLength=${xml.length} wrapperFetcher=${wrapperFetcher != null}")
         return parseInternal(xml = xml, wrapperFetcher = wrapperFetcher, depth = 0, visited = LinkedHashSet())
     }
 
@@ -184,6 +186,7 @@ class VastPullParser(
 
             when (p.tagName()) {
                 "Impression" -> tracking.getOrPut("impression") { mutableListOf() }.add(p.readText())
+                "Error" -> tracking.getOrPut("error") { mutableListOf() }.add(p.readText())
                 "Creatives" -> {
                     val res = readCreatives(p, tracking, mediaFiles)
                     if (durationMs == null) durationMs = res.durationMs
@@ -292,9 +295,14 @@ class VastPullParser(
             when (p.tagName()) {
                 "Tracking" -> {
                     val event = p.attr("event")?.trim()?.lowercase()
+                    val offset = p.attr("offset")?.trim()
                     val url = p.readText()
                     if (!event.isNullOrBlank() && url.isNotBlank()) {
-                        tracking.getOrPut(event) { mutableListOf() }.add(url)
+                        val key = if (event == "progress" && !offset.isNullOrBlank()) {
+                            // Preserve offset for accurate firing (VMAP/VAST often uses progress@00:00:05).
+                            "progress@${offset}"
+                        } else event
+                        tracking.getOrPut(key) { mutableListOf() }.add(url)
                     }
                 }
                 else -> p.skipTag()
@@ -334,6 +342,7 @@ class VastPullParser(
             when (p.tagName()) {
                 "VASTAdTagURI" -> url = p.readText()
                 "Impression" -> tracking.getOrPut("impression") { mutableListOf() }.add(p.readText())
+                "Error" -> tracking.getOrPut("error") { mutableListOf() }.add(p.readText())
                 "Creatives" -> {
                     // Wrapper tracking events can exist inside Creatives/Creative/Linear/TrackingEvents
                     readCreatives(p, tracking, mediaFiles = mutableListOf())

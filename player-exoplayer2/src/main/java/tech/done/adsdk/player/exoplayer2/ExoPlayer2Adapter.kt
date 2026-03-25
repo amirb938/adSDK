@@ -37,8 +37,12 @@ class ExoPlayer2Adapter(
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
-            if (playbackState == Player.STATE_ENDED && !_state.value.isInAd) {
-                listeners.forEach { it.onContentEnded() }
+            if (playbackState == Player.STATE_ENDED) {
+                if (_state.value.isInAd) {
+                    listeners.forEach { it.onAdEnded() }
+                } else {
+                    listeners.forEach { it.onContentEnded() }
+                }
             }
         }
 

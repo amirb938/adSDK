@@ -14,6 +14,9 @@ enum class TrackingEvent {
     FirstQuartile,
     Midpoint,
     ThirdQuartile,
+    Progress,
+    Pause,
+    Resume,
     Complete,
     Error,
 }

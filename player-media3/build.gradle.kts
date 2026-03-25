@@ -23,7 +23,13 @@ android {
 
 dependencies {
     implementation(project(":player-common"))
+    implementation(project(":core"))
+    implementation(project(":parser"))
+    implementation(project(":scheduler"))
+    implementation(project(":tracking"))
+    implementation(project(":network"))
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.common)
+    implementation(libs.media3.ui)
     implementation(libs.coroutines.android)
 }

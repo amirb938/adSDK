@@ -15,6 +15,9 @@ class RetryingTrackingEngine(
 
     override suspend fun track(event: TrackingEvent, urls: List<String>) {
         if (urls.isEmpty()) return
+        if (System.getProperty("adsdk.debug") == "true") {
+            println("AdSDK/Tracking D event=$event urls=${urls.size}")
+        }
 
         withContext(dispatcher) {
             // Fire sequentially to keep resource usage predictable in SDK core.
@@ -28,7 +31,13 @@ class RetryingTrackingEngine(
         var attempt = 1
         var backoff = initialBackoffMs
         while (attempt <= maxAttempts) {
+            if (System.getProperty("adsdk.debug") == "true") {
+                println("AdSDK/Tracking D fire attempt=$attempt url=$url")
+            }
             val resp = runCatching { network.get(url, timeoutMs = 10_000) }.getOrNull()
+            if (System.getProperty("adsdk.debug") == "true") {
+                println("AdSDK/Tracking D resp attempt=$attempt code=${resp?.code} ok=${resp?.isSuccessful}")
+            }
             if (resp != null && resp.isSuccessful) return
 
             if (attempt == maxAttempts) return

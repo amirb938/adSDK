@@ -18,5 +18,6 @@ data class ScheduledBreak(
     val original: AdBreak,
     val triggerTimeMs: Long?, // null for postroll (END) and preroll (0) may be 0
     val vastAdTagUri: String?,
+    val vastInlineXml: String?,
 )
 
