@@ -16,7 +16,6 @@ import kotlinx.coroutines.MainScope
 import tech.done.adsdk.player.media3.ima.AdDisplayContainerView
 import tech.done.adsdk.player.media3.ima.Media3AdsLoader
 import tech.done.adsdk.tracking.RetryingTrackingEngine
-import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
 
@@ -70,13 +69,16 @@ class MainActivity : ComponentActivity() {
 
                     LaunchedEffect(Unit) {
                         if (System.getProperty("adsdk.debug") == "true") {
-                            println("AdSDK/Sample D loading VMAP from res/raw/sample_vmap.xml")
+                            println("AdSDK/Sample D loading VMAP from assets/sample_vmap.xml")
                         }
-                        val adTagUri = listOf(
-                            "https://ads.kianoosh.dev/ads/ads",
-                            "https://ads.kianoosh.dev/ads/vast",
-                        )[Random.nextInt(1)]
-                        adsLoader.requestAds(adTagUri)
+//                        val adTagUri = listOf(
+//                            "https://ads.kianoosh.dev/ads/ads",
+//                            "https://ads.kianoosh.dev/ads/vast",
+//                        )[Random.nextInt(1)]
+//                        adsLoader.requestAds(adTagUri)
+                        val vmapXml =
+                            assets.open("sample_vmap.xml").bufferedReader().use { it.readText() }
+                        adsLoader.requestAdsFromVmapXml(vmapXml)
                         adsLoader.start()
                     }
                 }

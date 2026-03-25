@@ -1,61 +1,77 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<vmap:VMAP xmlns:vmap="http://www.iab.net/videosuite/vmap"
-    version="1.0">
-    <vmap:AdBreak
-        breakId="11037-Z028"
-        breakType="linear"
-        timeOffset="00:00:00">
-        <vmap:AdSource
-            allowMultipleAds="false"
-            followRedirects="true"
-            id="11037-Z028">
-            <vmap:VASTAdData>
-                <VAST version="3.0">
-                    <Ad id="33042-V238">
-                        <InLine>
-                            <AdSystem />
-                            <AdTitle>
-                                <![CDATA[ video_ad ]]>
-                            </AdTitle>
-                            <Impression>
-                                <![CDATA[ https://example.com/impression ]]>
-                            </Impression>
-                            <Creatives>
-                                <Creative>
-                                    <Linear>
-                                        <Duration>00:00:10</Duration>
-                                        <TrackingEvents>
-                                            <Tracking event="start">
-                                                <![CDATA[ https://example.com/start ]]>
-                                            </Tracking>
-                                        </TrackingEvents>
-                                        <MediaFiles>
-                                            <MediaFile type="video/mp4">
-                                                <![CDATA[ https://example.com/video.mp4 ]]>
-                                            </MediaFile>
-                                        </MediaFiles>
-                                    </Linear>
-                                </Creative>
-                            </Creatives>
-                        </InLine>
-                    </Ad>
-                </VAST>
-            </vmap:VASTAdData>
+<vmap:VMAP xmlns:vmap="http://www.iab.net/videosuite/vmap" version="1.0">
+
+    <!-- Preroll -->
+    <vmap:AdBreak breakId="preroll-1" breakType="linear" timeOffset="00:00:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="preroll-1">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
         </vmap:AdSource>
-        <TrackingEvents />
     </vmap:AdBreak>
-    <vmap:AdBreak
-        breakId="11037-Z028-midroll-1"
-        breakType="linear"
-        timeOffset="00:15:08">
-        <vmap:AdSource
-            allowMultipleAds="false"
-            followRedirects="true"
-            id="11037-Z028">
-            <vmap:AdTagURI templateType="vast3">
-                <![CDATA[ https://example.com/vast ]]>
-            </vmap:AdTagURI>
+
+    <!-- Midroll every 5 minutes (for midroll testing) -->
+    <vmap:AdBreak breakId="midroll-05" breakType="linear" timeOffset="00:05:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="midroll-05">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
         </vmap:AdSource>
-        <TrackingEvents />
+    </vmap:AdBreak>
+
+    <vmap:AdBreak breakId="midroll-10" breakType="linear" timeOffset="00:10:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="midroll-10">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
+        </vmap:AdSource>
+    </vmap:AdBreak>
+
+    <vmap:AdBreak breakId="midroll-15" breakType="linear" timeOffset="00:15:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="midroll-15">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
+        </vmap:AdSource>
+    </vmap:AdBreak>
+
+    <vmap:AdBreak breakId="midroll-20" breakType="linear" timeOffset="00:20:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="midroll-20">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
+        </vmap:AdSource>
+    </vmap:AdBreak>
+
+    <vmap:AdBreak breakId="midroll-25" breakType="linear" timeOffset="00:25:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="midroll-25">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
+        </vmap:AdSource>
+    </vmap:AdBreak>
+
+    <vmap:AdBreak breakId="midroll-30" breakType="linear" timeOffset="00:30:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="midroll-30">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
+        </vmap:AdSource>
+    </vmap:AdBreak>
+
+    <vmap:AdBreak breakId="midroll-35" breakType="linear" timeOffset="00:35:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="midroll-35">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
+        </vmap:AdSource>
+    </vmap:AdBreak>
+
+    <vmap:AdBreak breakId="midroll-40" breakType="linear" timeOffset="00:40:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="midroll-40">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
+        </vmap:AdSource>
+    </vmap:AdBreak>
+
+    <vmap:AdBreak breakId="midroll-45" breakType="linear" timeOffset="00:45:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="midroll-45">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
+        </vmap:AdSource>
+    </vmap:AdBreak>
+
+    <vmap:AdBreak breakId="midroll-50" breakType="linear" timeOffset="00:50:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="midroll-50">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
+        </vmap:AdSource>
+    </vmap:AdBreak>
+
+    <vmap:AdBreak breakId="midroll-55" breakType="linear" timeOffset="00:55:00">
+        <vmap:AdSource allowMultipleAds="false" followRedirects="true" id="midroll-55">
+            <vmap:AdTagURI templateType="vast3"><![CDATA[asset://sample_vast.xml]]></vmap:AdTagURI>
+        </vmap:AdSource>
     </vmap:AdBreak>
 </vmap:VMAP>

@@ -1,6 +1,7 @@
 package tech.done.adsdk.player.media3.ima
 
 import android.os.Looper
+import android.view.View
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.CoroutineScope
@@ -12,6 +13,7 @@ import tech.done.adsdk.core.DefaultAdEngine
 import tech.done.adsdk.network.NetworkLayer
 import tech.done.adsdk.parser.impl.VastPullParser
 import tech.done.adsdk.parser.impl.VmapPullParser
+import tech.done.adsdk.parser.model.VmapResponse
 import tech.done.adsdk.scheduler.VmapScheduler
 import tech.done.adsdk.tracking.RetryingTrackingEngine
 import tech.done.adsdk.tracking.TrackingEngine
@@ -66,6 +68,7 @@ class Media3AdsLoader(
     fun requestAdsFromVmapXml(vmapXml: String) {
         val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setPlayerView/setAdDisplayContainer first.")
         scope.launch(Dispatchers.Main.immediate) {
+            applyAdMarkersFromVmapXmlOrClear(vmapXml)
             e.loadVmap(vmapXml)
         }
     }
@@ -88,6 +91,7 @@ class Media3AdsLoader(
                 XmlKind.Unknown -> error("Unknown ad response. Expected VMAP or VAST. url=$adTagUri")
             }
             withContext(Dispatchers.Main.immediate) {
+                applyAdMarkersFromVmapXmlOrClear(vmapXml)
                 e.loadVmap(vmapXml)
             }
         }
@@ -160,6 +164,66 @@ class Media3AdsLoader(
               </vmap:AdBreak>
             </vmap:VMAP>
         """.trimIndent()
+    }
+
+    /**
+     * Enables "yellow ad markers" on the PlayerView seekbar (like IMA).
+     *
+     * This is best-effort and depends on the concrete time bar implementation.
+     */
+    private fun applyAdMarkersFromVmapXmlOrClear(vmapXml: String) {
+        val playerView = contentPlayerView ?: return
+        val parsed: VmapResponse = runCatching { VmapPullParser().parse(vmapXml) }.getOrNull()
+            ?: run {
+                applyAdMarkers(playerView, longArrayOf())
+                return
+            }
+
+        val timeline = VmapScheduler().buildTimeline(parsed)
+        val markersMs = timeline.midrolls
+            .mapNotNull { it.triggerTimeMs }
+            .filter { it > 0 }
+            .distinct()
+            .sorted()
+            .toLongArray()
+
+        applyAdMarkers(playerView, markersMs)
+    }
+
+    private fun applyAdMarkers(playerView: PlayerView, adGroupTimesMs: LongArray) {
+        // media3 UI uses a timebar with id exo_progress in most skins.
+        val timeBar = playerView.findViewById<View?>(androidx.media3.ui.R.id.exo_progress) ?: return
+
+        // Try common signatures via reflection (API varies across media3 versions).
+        val played = BooleanArray(adGroupTimesMs.size) { false }
+        val cls = timeBar.javaClass
+
+        runCatching {
+            cls.getMethod(
+                "setAdGroupTimesMs",
+                LongArray::class.java,
+                BooleanArray::class.java,
+                Int::class.javaPrimitiveType,
+            ).invoke(timeBar, adGroupTimesMs, played, adGroupTimesMs.size)
+            return
+        }
+
+        runCatching {
+            cls.getMethod(
+                "setAdGroupTimesMs",
+                LongArray::class.java,
+                BooleanArray::class.java,
+            ).invoke(timeBar, adGroupTimesMs, played)
+            return
+        }
+
+        // Optional: marker colors (best-effort).
+        runCatching {
+            cls.getMethod("setAdMarkerColor", Int::class.javaPrimitiveType).invoke(timeBar, 0xFFFFC107.toInt()) // amber
+        }
+        runCatching {
+            cls.getMethod("setPlayedAdMarkerColor", Int::class.javaPrimitiveType).invoke(timeBar, 0xFFFFC107.toInt())
+        }
     }
 }
 
