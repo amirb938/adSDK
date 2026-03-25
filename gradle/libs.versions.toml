@@ -1,40 +1,55 @@
 [versions]
-agp = "8.3.2"
-kotlin = "1.9.24"
+android-gradle-plugin = "8.7.3"
+kotlin = "2.2.21"
 
-compileSdk = "34"
-minSdk = "21"
+compileSdk = "35"
+minSdk = "24"
 targetSdk = "34"
 
-androidx-core = "1.12.0"
-androidx-appcompat = "1.6.1"
-androidx-activity = "1.8.2"
+androidx-core-ktx = "1.13.1"
+androidx-activity-compose = "1.10.1"
+androidx-lifecycle = "2.8.7"
 
-media3 = "1.3.1"
+androidx-compose-bom = "2025.12.00"
+
+androidx-media3 = "1.9.2"
+
+# Not present in DoneUIProject; keeping current until specified there.
 exoplayer2 = "2.19.1"
-
-compose-bom = "2024.06.00"
+kxml2 = "2.3.0"
+junit4 = "4.13.2"
+kotlinx_coroutines = "1.10.2"
 
 [libraries]
-androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
-androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidx-appcompat" }
-androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref = "androidx-activity" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core-ktx" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity-compose" }
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "androidx-lifecycle" }
 
-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
-media3-common = { module = "androidx.media3:media3-common", version.ref = "media3" }
+media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "androidx-media3" }
+media3-ui = { module = "androidx.media3:media3-ui", version.ref = "androidx-media3" }
+media3-common = { module = "androidx.media3:media3-common", version.ref = "androidx-media3" }
 
 exoplayer2-core = { module = "com.google.android.exoplayer:exoplayer-core", version.ref = "exoplayer2" }
 exoplayer2-ui = { module = "com.google.android.exoplayer:exoplayer-ui", version.ref = "exoplayer2" }
 
-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "androidx-compose-bom" }
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
 
+xmlpull-kxml2 = { module = "net.sf.kxml:kxml2", version.ref = "kxml2" }
+
+junit4 = { module = "junit:junit", version.ref = "junit4" }
+
+coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx_coroutines" }
+coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx_coroutines" }
+
 [plugins]
-android-application = { id = "com.android.application", version.ref = "agp" }
-android-library = { id = "com.android.library", version.ref = "agp" }
+android-application = { id = "com.android.application", version.ref = "android-gradle-plugin" }
+android-library = { id = "com.android.library", version.ref = "android-gradle-plugin" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+
+# Align with DoneUIProject Kotlin 2.x compose plugin usage
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 

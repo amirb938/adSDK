@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VMAP version="1.0">
+    <AdBreak timeOffset="start" breakType="linear" breakId="preroll-1">
+        <AdSource>
+            <AdTagURI><![CDATA[asset://sample_vast.xml]]></AdTagURI>
+        </AdSource>
+    </AdBreak>
+</VMAP>
+

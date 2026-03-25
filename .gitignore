@@ -1,0 +1,53 @@
+# Gradle files
+.gradle/
+build/
+
+# Kotlin
+.kotlin/
+
+# IDE files (IntelliJ/Android Studio)
+.idea/
+*.iml
+*.iws
+*.ipr
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local configuration files (should not be in VCS)
+local.properties
+.sdkmanrc
+secrets.properties
+
+# Keystores
+*.jks
+*.keystore
+*.p12
+*.jks-bkp
+
+# Google Services (if applicable)
+google-services.json
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log files
+*.log
+
+# Java/JDK files
+.jdks/
+
+# NDK
+obj/
+
+# Crashlytics
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties

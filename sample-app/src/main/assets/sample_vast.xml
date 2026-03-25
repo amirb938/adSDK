@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VAST version="4.2">
+    <Ad id="1">
+        <InLine>
+            <AdSystem>Sample</AdSystem>
+            <AdTitle>Sample Ad</AdTitle>
+            <Impression><![CDATA[https://example.invalid/impression]]></Impression>
+            <Creatives>
+                <Creative>
+                    <Linear skipoffset="00:00:03">
+                        <Duration>00:00:10</Duration>
+                        <TrackingEvents>
+                            <Tracking event="start"><![CDATA[https://example.invalid/start]]></Tracking>
+                            <Tracking event="firstQuartile"><![CDATA[https://example.invalid/q1]]></Tracking>
+                            <Tracking event="midpoint"><![CDATA[https://example.invalid/q2]]></Tracking>
+                            <Tracking event="thirdQuartile"><![CDATA[https://example.invalid/q3]]></Tracking>
+                            <Tracking event="complete"><![CDATA[https://example.invalid/complete]]></Tracking>
+                        </TrackingEvents>
+                        <MediaFiles>
+                            <MediaFile type="video/mp4" width="640" height="360">
+                                <![CDATA[https://storage.googleapis.com/exoplayer-test-media-0/BigBuckBunny_320x180.mp4]]>
+                            </MediaFile>
+                        </MediaFiles>
+                    </Linear>
+                </Creative>
+            </Creatives>
+        </InLine>
+    </Ad>
+</VAST>
+

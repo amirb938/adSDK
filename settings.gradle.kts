@@ -11,22 +11,23 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven("https://jitpack.io")
     }
 }
 
 rootProject.name = "AdSDK"
 
 include(
-    ":ad-sdk-core",
-    ":ad-sdk-api",
-    ":ad-sdk-parser",
-    ":ad-sdk-scheduler",
-    ":ad-sdk-tracking",
-    ":ad-sdk-network",
-    ":ad-sdk-ui-compose",
-    ":ad-sdk-player-common",
-    ":ad-sdk-player-media3",
-    ":ad-sdk-player-exoplayer2",
+    ":core",
+    ":api",
+    ":parser",
+    ":scheduler",
+    ":tracking",
+    ":network",
+    ":ui-compose",
+    ":player-common",
+    ":player-media3",
+    ":player-exoplayer2",
     ":sample-app",
 )
 
