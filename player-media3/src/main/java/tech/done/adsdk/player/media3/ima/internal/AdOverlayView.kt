@@ -9,6 +9,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import tech.done.adsdk.player.media3.R
 import kotlin.math.ceil
 
 internal class AdOverlayView @JvmOverloads constructor(
@@ -17,15 +18,23 @@ internal class AdOverlayView @JvmOverloads constructor(
     defStyleAttr: Int = 0,
 ) : FrameLayout(context, attrs, defStyleAttr) {
 
-    private val countdownText = TextView(context).apply {
+    private val remainingText = TextView(context).apply {
         setTextColor(Color.WHITE)
         textSize = 14f
         text = ""
         setShadowLayer(4f, 0f, 0f, Color.BLACK)
     }
 
+    private val skipInText = TextView(context).apply {
+        setTextColor(Color.WHITE)
+        textSize = 14f
+        text = ""
+        setShadowLayer(4f, 0f, 0f, Color.BLACK)
+        visibility = View.GONE
+    }
+
     private val skipButton = Button(context).apply {
-        text = context.getString(tech.done.adsdk.player.media3.R.string.adsdk_skip)
+        text = context.getString(R.string.adsdk_skip)
         isAllCaps = false
         visibility = View.GONE
     }
@@ -44,8 +53,15 @@ internal class AdOverlayView @JvmOverloads constructor(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             setPadding(24, 24, 24, 24)
-            addView(countdownText, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-            addView(skipButton, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+            addView(remainingText, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+
+            val right = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                addView(skipInText, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+                addView(skipButton, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+            }
+            addView(right, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
         }
 
         addView(
@@ -80,24 +96,24 @@ internal class AdOverlayView @JvmOverloads constructor(
 
         val skipInSec = if (canSkip) null else ceil(((skipOffsetMs - adPositionMs).coerceAtLeast(0L)) / 1000.0).toInt()
 
-        countdownText.text = buildString {
-            if (remainingSec != null) {
-                append(
-                    context.getString(
-                        tech.done.adsdk.player.media3.R.string.adsdk_ad_remaining_seconds,
-                        remainingSec,
-                    ),
+        remainingText.text =
+            remainingSec?.let {
+                context.getString(
+                    R.string.adsdk_ad_remaining_seconds,
+                    it,
                 )
-            }
-            if (skipInSec != null) {
-                if (isNotEmpty()) append("  ")
-                append(
-                    context.getString(
-                        tech.done.adsdk.player.media3.R.string.adsdk_ad_skip_in_seconds,
-                        skipInSec,
-                    ),
+            }.orEmpty()
+
+        if (skipInSec != null) {
+            skipInText.visibility = View.VISIBLE
+            skipInText.text =
+                context.getString(
+                    R.string.adsdk_ad_skip_in_seconds,
+                    skipInSec,
                 )
-            }
+        } else {
+            skipInText.visibility = View.GONE
+            skipInText.text = ""
         }
     }
 }
