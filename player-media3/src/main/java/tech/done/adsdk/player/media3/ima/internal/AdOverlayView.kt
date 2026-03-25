@@ -2,6 +2,7 @@ package tech.done.adsdk.player.media3.ima.internal
 
 import android.content.Context
 import android.graphics.Color
+import android.util.TypedValue
 import android.util.AttributeSet
 import android.view.Gravity
 import android.view.View
@@ -9,6 +10,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import tech.done.adsdk.player.media3.R
 import kotlin.math.ceil
 
 internal class AdOverlayView @JvmOverloads constructor(
@@ -17,17 +19,35 @@ internal class AdOverlayView @JvmOverloads constructor(
     defStyleAttr: Int = 0,
 ) : FrameLayout(context, attrs, defStyleAttr) {
 
-    private val countdownText = TextView(context).apply {
+    private fun dp(value: Int): Int =
+        TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            value.toFloat(),
+            resources.displayMetrics,
+        ).toInt()
+
+    private val remainingText = TextView(context).apply {
         setTextColor(Color.WHITE)
         textSize = 14f
         text = ""
         setShadowLayer(4f, 0f, 0f, Color.BLACK)
     }
 
+    private val skipInText = TextView(context).apply {
+        setTextColor(Color.WHITE)
+        textSize = 14f
+        text = ""
+        setShadowLayer(4f, 0f, 0f, Color.BLACK)
+        // Keep layout height stable; toggle INVISIBLE/VISIBLE instead of GONE.
+        visibility = View.INVISIBLE
+    }
+
     private val skipButton = Button(context).apply {
-        text = context.getString(tech.done.adsdk.player.media3.R.string.adsdk_skip)
+        text = context.getString(R.string.adsdk_skip)
         isAllCaps = false
-        visibility = View.GONE
+        // Keep layout height stable; toggle INVISIBLE/VISIBLE instead of GONE.
+        visibility = View.INVISIBLE
+        minHeight = dp(36)
     }
 
     var onSkip: (() -> Unit)? = null
@@ -43,9 +63,17 @@ internal class AdOverlayView @JvmOverloads constructor(
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
-            setPadding(24, 24, 24, 24)
-            addView(countdownText, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-            addView(skipButton, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            minimumHeight = dp(56)
+            addView(remainingText, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+
+            val right = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                addView(skipInText, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+                addView(skipButton, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+            }
+            addView(right, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
         }
 
         addView(
@@ -72,7 +100,8 @@ internal class AdOverlayView @JvmOverloads constructor(
         if (!inAd) return
 
         val canSkip = adPositionMs >= skipOffsetMs
-        skipButton.visibility = if (canSkip) View.VISIBLE else View.GONE
+        // INVISIBLE keeps height stable and prevents UI "jump".
+        skipButton.visibility = if (canSkip) View.VISIBLE else View.INVISIBLE
 
         val remainingSec = adDurationMs?.let { dur ->
             ceil(((dur - adPositionMs).coerceAtLeast(0L)) / 1000.0).toInt()
@@ -80,24 +109,25 @@ internal class AdOverlayView @JvmOverloads constructor(
 
         val skipInSec = if (canSkip) null else ceil(((skipOffsetMs - adPositionMs).coerceAtLeast(0L)) / 1000.0).toInt()
 
-        countdownText.text = buildString {
-            if (remainingSec != null) {
-                append(
-                    context.getString(
-                        tech.done.adsdk.player.media3.R.string.adsdk_ad_remaining_seconds,
-                        remainingSec,
-                    ),
+        remainingText.text =
+            remainingSec?.let {
+                context.getString(
+                    R.string.adsdk_ad_remaining_seconds,
+                    it,
                 )
-            }
-            if (skipInSec != null) {
-                if (isNotEmpty()) append("  ")
-                append(
-                    context.getString(
-                        tech.done.adsdk.player.media3.R.string.adsdk_ad_skip_in_seconds,
-                        skipInSec,
-                    ),
+            }.orEmpty()
+
+        if (skipInSec != null) {
+            skipInText.visibility = View.VISIBLE
+            skipInText.text =
+                context.getString(
+                    R.string.adsdk_ad_skip_in_seconds,
+                    skipInSec,
                 )
-            }
+        } else {
+            // INVISIBLE keeps height stable and prevents UI "jump".
+            skipInText.visibility = View.INVISIBLE
+            skipInText.text = ""
         }
     }
 }

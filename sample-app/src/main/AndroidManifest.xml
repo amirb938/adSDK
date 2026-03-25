@@ -4,7 +4,8 @@
     <application
         android:allowBackup="true"
         android:label="AdSDK Sample"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AdSdkSample.NoActionBar">
         <activity
             android:name=".MainActivity"
             android:exported="true">
