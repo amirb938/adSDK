@@ -13,13 +13,17 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
 import tech.done.adsdk.player.media3.ima.AdDisplayContainerView
 import tech.done.adsdk.player.media3.ima.Media3AdsLoader
 import tech.done.adsdk.tracking.RetryingTrackingEngine
 
 class MainActivity : ComponentActivity() {
 
-    private val scope = MainScope()
+    private var scope = MainScope()
+    private var exo: ExoPlayer? = null
+    private var adsLoader: Media3AdsLoader? = null
+    private var didReleaseOnStop: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,10 +37,12 @@ class MainActivity : ComponentActivity() {
             prepare()
             playWhenReady = true
         }
+        this.exo = exo
 
         val network = SampleNetworkLayer(this)
         val tracking = RetryingTrackingEngine(network)
         val adsLoader = Media3AdsLoader(network = network, tracking = tracking, scope = scope)
+        this.adsLoader = adsLoader
 
         setContent {
             MaterialTheme {
@@ -88,8 +94,28 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        // Engine expects background pause during ads.
-        // For sample: pause player; adapter will keep state updated.
+
+        // User requested: leaving activity (back/home/recents) should stop everything and
+        // next entry should start from scratch.
+        runCatching { adsLoader?.release() }
+        runCatching { exo?.stop() }
+        runCatching { exo?.clearMediaItems() }
+        runCatching { exo?.release() }
+        runCatching { scope.cancel() }
+
+        adsLoader = null
+        exo = null
+        didReleaseOnStop = true
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // If we were stopped and released, force a full restart so onCreate runs again.
+        if (didReleaseOnStop) {
+            didReleaseOnStop = false
+            scope = MainScope()
+            recreate()
+        }
     }
 }
 
