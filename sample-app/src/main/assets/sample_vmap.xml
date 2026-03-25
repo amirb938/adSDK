@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vmap:VMAP xmlns:vmap="http://www.iab.net/videosuite/vmap"
+    version="1.0">
+    <vmap:AdBreak
+        breakId="11037-Z028"
+        breakType="linear"
+        timeOffset="00:00:00">
+        <vmap:AdSource
+            allowMultipleAds="false"
+            followRedirects="true"
+            id="11037-Z028">
+            <vmap:VASTAdData>
+                <VAST version="3.0">
+                    <Ad id="33042-V238">
+                        <InLine>
+                            <AdSystem />
+                            <AdTitle>
+                                <![CDATA[ video_ad ]]>
+                            </AdTitle>
+                            <Impression>
+                                <![CDATA[ https://example.com/impression ]]>
+                            </Impression>
+                            <Creatives>
+                                <Creative>
+                                    <Linear>
+                                        <Duration>00:00:10</Duration>
+                                        <TrackingEvents>
+                                            <Tracking event="start">
+                                                <![CDATA[ https://example.com/start ]]>
+                                            </Tracking>
+                                        </TrackingEvents>
+                                        <MediaFiles>
+                                            <MediaFile type="video/mp4">
+                                                <![CDATA[ https://example.com/video.mp4 ]]>
+                                            </MediaFile>
+                                        </MediaFiles>
+                                    </Linear>
+                                </Creative>
+                            </Creatives>
+                        </InLine>
+                    </Ad>
+                </VAST>
+            </vmap:VASTAdData>
+        </vmap:AdSource>
+        <TrackingEvents />
+    </vmap:AdBreak>
+    <vmap:AdBreak
+        breakId="11037-Z028-midroll-1"
+        breakType="linear"
+        timeOffset="00:15:08">
+        <vmap:AdSource
+            allowMultipleAds="false"
+            followRedirects="true"
+            id="11037-Z028">
+            <vmap:AdTagURI templateType="vast3">
+                <![CDATA[ https://example.com/vast ]]>
+            </vmap:AdTagURI>
+        </vmap:AdSource>
+        <TrackingEvents />
+    </vmap:AdBreak>
+</vmap:VMAP>

@@ -6,6 +6,7 @@ import tech.done.adsdk.parser.error.XmlParseError
 import tech.done.adsdk.parser.internal.parseVmapTimeOffsetToMs
 import tech.done.adsdk.parser.internal.readText
 import tech.done.adsdk.parser.internal.skipTag
+import tech.done.adsdk.parser.internal.tagName
 import tech.done.adsdk.parser.model.AdBreak
 import tech.done.adsdk.parser.model.Position
 import tech.done.adsdk.parser.model.VmapResponse
@@ -33,16 +34,19 @@ class VmapPullParser : VmapParser {
 
     private fun parseDocument(p: XmlPullParser): VmapResponse {
         p.nextTag()
-        if (p.name != "VMAP") {
+        if (p.tagName() != "VMAP") {
             throw VmapParseError(XmlParseError.Code.MalformedXml, "Root tag must be <VMAP> but was <${p.name}>", line = p.lineNumber, column = p.columnNumber)
         }
 
         val version = p.getAttributeValue(null, "version")
         val breaks = mutableListOf<AdBreak>()
 
-        while (p.next() != XmlPullParser.END_TAG || p.name != "VMAP") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val event = p.next()
+            if (event == XmlPullParser.END_TAG && p.tagName() == "VMAP") break
+            if (event != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "AdBreak" -> breaks += readAdBreak(p) ?: run { /* ignore empty */; continue }
                 else -> p.skipTag()
             }
@@ -74,9 +78,12 @@ class VmapPullParser : VmapParser {
 
         var vastAdTagUri: String? = null
 
-        while (p.next() != XmlPullParser.END_TAG || p.name != "AdBreak") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val event = p.next()
+            if (event == XmlPullParser.END_TAG && p.tagName() == "AdBreak") break
+            if (event != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "AdSource" -> vastAdTagUri = readAdSource(p)
                 else -> p.skipTag()
             }
@@ -95,9 +102,12 @@ class VmapPullParser : VmapParser {
 
     private fun readAdSource(p: XmlPullParser): String? {
         var vastAdTagUri: String? = null
-        while (p.next() != XmlPullParser.END_TAG || p.name != "AdSource") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val event = p.next()
+            if (event == XmlPullParser.END_TAG && p.tagName() == "AdSource") break
+            if (event != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "AdTagURI" -> {
                     vastAdTagUri = p.readText()
                 }

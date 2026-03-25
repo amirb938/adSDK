@@ -2,9 +2,11 @@ package tech.done.adsdk.parser.internal
 
 import org.xmlpull.v1.XmlPullParser
 
+internal fun XmlPullParser.tagName(): String = (name ?: "").substringAfter(':')
+
 internal fun XmlPullParser.requireStartTag(name: String) {
     require(eventType == XmlPullParser.START_TAG) { "Expected START_TAG <$name> but was event=$eventType name=$this.name" }
-    require(this.name == name) { "Expected <$name> but was <$this.name>" }
+    require(this.tagName() == name) { "Expected <$name> but was <${this.name}>" }
 }
 
 internal fun XmlPullParser.readText(): String {

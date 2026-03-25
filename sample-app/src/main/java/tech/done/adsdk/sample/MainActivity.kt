@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
 
         val exo = ExoPlayer.Builder(this).build().apply {
             // Sample content
-            setMediaItem(androidx.media3.common.MediaItem.fromUri("https://storage.googleapis.com/exoplayer-test-media-0/BigBuckBunny_320x180.mp4"))
+            setMediaItem(androidx.media3.common.MediaItem.fromUri("https://amirb938.s3.ir-thr-at1.arvanstorage.ir/ReorderApp.mp4"))
             prepare()
             playWhenReady = true
         }

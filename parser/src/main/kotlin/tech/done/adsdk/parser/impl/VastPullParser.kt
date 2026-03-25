@@ -8,6 +8,7 @@ import tech.done.adsdk.parser.internal.attr
 import tech.done.adsdk.parser.internal.parseVastTimeToMs
 import tech.done.adsdk.parser.internal.readText
 import tech.done.adsdk.parser.internal.skipTag
+import tech.done.adsdk.parser.internal.tagName
 import tech.done.adsdk.parser.internal.toIntOrNullSafe
 import tech.done.adsdk.parser.model.MediaFile
 import tech.done.adsdk.parser.model.SkipOffset
@@ -84,7 +85,7 @@ class VastPullParser(
 
     private fun parseDocument(p: XmlPullParser): List<VastAd> {
         p.nextTag()
-        if (p.name != "VAST") {
+        if (p.tagName() != "VAST") {
             throw VastParseError(XmlParseError.Code.MalformedXml, "Root tag must be <VAST> but was <${p.name}>", line = p.lineNumber, column = p.columnNumber)
         }
 
@@ -94,9 +95,12 @@ class VastPullParser(
         }
 
         val ads = mutableListOf<VastAd>()
-        while (p.next() != XmlPullParser.END_TAG || p.name != "VAST") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val event = p.next()
+            if (event == XmlPullParser.END_TAG && p.tagName() == "VAST") break
+            if (event != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "Ad" -> {
                     readAd(p)?.let { if (it.mediaFiles.isNotEmpty() || it.isWrapper) ads += it }
                 }
@@ -118,9 +122,12 @@ class VastPullParser(
         val mediaFiles = mutableListOf<MediaFile>()
         val tracking = mutableMapOf<String, MutableList<String>>()
 
-        while (p.next() != XmlPullParser.END_TAG || p.name != "Ad") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val event = p.next()
+            if (event == XmlPullParser.END_TAG && p.tagName() == "Ad") break
+            if (event != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "InLine" -> {
                     isWrapper = false
                     readInline(p, tracking, mediaFiles).also {
@@ -170,9 +177,12 @@ class VastPullParser(
         var durationMs: Long? = null
         var skipOffset: SkipOffset? = null
 
-        while (p.next() != XmlPullParser.END_TAG || p.name != "InLine") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val event = p.next()
+            if (event == XmlPullParser.END_TAG && p.tagName() == "InLine") break
+            if (event != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "Impression" -> tracking.getOrPut("impression") { mutableListOf() }.add(p.readText())
                 "Creatives" -> {
                     val res = readCreatives(p, tracking, mediaFiles)
@@ -199,9 +209,12 @@ class VastPullParser(
         var durationMs: Long? = null
         var skipOffset: SkipOffset? = null
 
-        while (p.next() != XmlPullParser.END_TAG || p.name != "Creatives") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val event = p.next()
+            if (event == XmlPullParser.END_TAG && p.tagName() == "Creatives") break
+            if (event != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "Creative" -> {
                     val res = readCreative(p, tracking, mediaFiles)
                     if (durationMs == null) durationMs = res.durationMs
@@ -222,9 +235,12 @@ class VastPullParser(
         var durationMs: Long? = null
         var skipOffset: SkipOffset? = null
 
-        while (p.next() != XmlPullParser.END_TAG || p.name != "Creative") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val event = p.next()
+            if (event == XmlPullParser.END_TAG && p.tagName() == "Creative") break
+            if (event != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "Linear" -> {
                     val res = readLinear(p, tracking, mediaFiles)
                     durationMs = res.durationMs
@@ -251,9 +267,12 @@ class VastPullParser(
         val skipOffset = parseSkipOffset(skipOffsetRaw)
         var durationMs: Long? = null
 
-        while (p.next() != XmlPullParser.END_TAG || p.name != "Linear") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val event = p.next()
+            if (event == XmlPullParser.END_TAG && p.tagName() == "Linear") break
+            if (event != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "Duration" -> durationMs = parseVastTimeToMs(p.readText())
                 "TrackingEvents" -> readTrackingEvents(p, tracking)
                 "MediaFiles" -> readMediaFiles(p, mediaFiles)
@@ -265,9 +284,12 @@ class VastPullParser(
     }
 
     private fun readTrackingEvents(p: XmlPullParser, tracking: MutableMap<String, MutableList<String>>) {
-        while (p.next() != XmlPullParser.END_TAG || p.name != "TrackingEvents") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val eventType = p.next()
+            if (eventType == XmlPullParser.END_TAG && p.tagName() == "TrackingEvents") break
+            if (eventType != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "Tracking" -> {
                     val event = p.attr("event")?.trim()?.lowercase()
                     val url = p.readText()
@@ -281,9 +303,12 @@ class VastPullParser(
     }
 
     private fun readMediaFiles(p: XmlPullParser, mediaFiles: MutableList<MediaFile>) {
-        while (p.next() != XmlPullParser.END_TAG || p.name != "MediaFiles") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val eventType = p.next()
+            if (eventType == XmlPullParser.END_TAG && p.tagName() == "MediaFiles") break
+            if (eventType != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "MediaFile" -> {
                     val mime = p.attr("type")
                     val bitrate = p.attr("bitrate")?.toIntOrNullSafe()
@@ -301,9 +326,12 @@ class VastPullParser(
 
     private fun readWrapper(p: XmlPullParser, tracking: MutableMap<String, MutableList<String>>): String? {
         var url: String? = null
-        while (p.next() != XmlPullParser.END_TAG || p.name != "Wrapper") {
-            if (p.eventType != XmlPullParser.START_TAG) continue
-            when (p.name) {
+        while (true) {
+            val eventType = p.next()
+            if (eventType == XmlPullParser.END_TAG && p.tagName() == "Wrapper") break
+            if (eventType != XmlPullParser.START_TAG) continue
+
+            when (p.tagName()) {
                 "VASTAdTagURI" -> url = p.readText()
                 "Impression" -> tracking.getOrPut("impression") { mutableListOf() }.add(p.readText())
                 "Creatives" -> {

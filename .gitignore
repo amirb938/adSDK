@@ -15,6 +15,10 @@ captures/
 .externalNativeBuild/
 .cxx/
 
+# Allow sharing run configurations (keeps rest of .idea ignored)
+!.idea/runConfigurations/
+!.idea/runConfigurations/*.xml
+
 # Local configuration files (should not be in VCS)
 local.properties
 .sdkmanrc
