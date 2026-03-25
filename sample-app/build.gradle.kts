@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.adsdk.sample"
+    namespace = "tech.done.adsdk.sample"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.example.adsdk.sample"
+        applicationId = "tech.done.adsdk.sample"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
@@ -51,4 +51,3 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
 }
-

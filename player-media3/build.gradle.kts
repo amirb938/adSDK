@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.adsdk.player.media3"
+    namespace = "tech.done.adsdk.player.media3"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
@@ -27,4 +27,3 @@ dependencies {
     implementation(libs.media3.common)
     implementation(libs.coroutines.android)
 }
-

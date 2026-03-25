@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.adsdk.ui.compose"
+    namespace = "tech.done.adsdk.ui.compose"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
@@ -32,4 +32,3 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
 }
-

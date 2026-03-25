@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.adsdk.player.exoplayer2"
+    namespace = "tech.done.adsdk.player.exoplayer2"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
@@ -26,4 +26,3 @@ dependencies {
     implementation(libs.exoplayer2.core)
     implementation(libs.coroutines.android)
 }
-

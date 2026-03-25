@@ -7,11 +7,10 @@ plugins {
 }
 
 allprojects {
-    group = "com.example.adsdk"
+    group = "tech.done.adsdk"
     version = "0.1.0-SNAPSHOT"
 }
 
 subprojects {
     // Keep configuration minimal and module-local; avoid cross-module Android leakage.
 }
-
