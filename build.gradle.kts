@@ -13,4 +13,41 @@ allprojects {
 
 subprojects {
     // Keep configuration minimal and module-local; avoid cross-module Android leakage.
+
+    // JitPack expects publishToMavenLocal to exist. Provide a default publication for
+    // JVM and Android library modules, while skipping app modules.
+    plugins.withId("org.jetbrains.kotlin.jvm") {
+        apply(plugin = "maven-publish")
+
+        extensions.configure<org.gradle.api.publish.PublishingExtension>("publishing") {
+            publications {
+                create<org.gradle.api.publish.maven.MavenPublication>("maven") {
+                    from(components["java"])
+                }
+            }
+        }
+    }
+
+    plugins.withId("com.android.library") {
+        apply(plugin = "maven-publish")
+
+        // Ensure the 'release' component exists for publishing.
+        extensions.configure<com.android.build.gradle.LibraryExtension>("android") {
+            publishing {
+                singleVariant("release") {
+                    withSourcesJar()
+                }
+            }
+        }
+
+        afterEvaluate {
+            extensions.configure<org.gradle.api.publish.PublishingExtension>("publishing") {
+                publications {
+                    create<org.gradle.api.publish.maven.MavenPublication>("maven") {
+                        from(components["release"])
+                    }
+                }
+            }
+        }
+    }
 }
