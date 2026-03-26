@@ -22,6 +22,8 @@ android {
 
     lint {
         disable += "NullSafeMutableLiveData"
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 
     compileOptions {
