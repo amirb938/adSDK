@@ -1,5 +1,6 @@
 package tech.done.adsdk.player.media3.ima
 
+import android.content.Context
 import android.os.Looper
 import android.view.View
 import androidx.media3.exoplayer.ExoPlayer
@@ -10,6 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tech.done.adsdk.core.DefaultAdEngine
 import tech.done.adsdk.network.NetworkLayer
+import tech.done.adsdk.player.media3.network.SampleNetworkLayer
 import tech.done.adsdk.parser.impl.VastPullParser
 import tech.done.adsdk.parser.impl.VmapPullParser
 import tech.done.adsdk.parser.model.VmapResponse
@@ -34,6 +36,17 @@ class Media3AdsLoader(
     private val tracking: TrackingEngine = RetryingTrackingEngine(network),
     private val scope: CoroutineScope = MainScope(),
 ) {
+    constructor(
+        context: Context,
+        network: NetworkLayer = SampleNetworkLayer(context),
+        tracking: TrackingEngine = RetryingTrackingEngine(network),
+        scope: CoroutineScope = MainScope(),
+    ) : this(
+        network = network,
+        tracking = tracking,
+        scope = scope,
+    )
+
     /**
      * Optional callbacks to let the host suppress its own content UI during ads.
      *

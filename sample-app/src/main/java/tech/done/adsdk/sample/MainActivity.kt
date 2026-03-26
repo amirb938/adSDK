@@ -16,7 +16,6 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import tech.done.adsdk.player.media3.ima.AdDisplayContainerView
 import tech.done.adsdk.player.media3.ima.Media3AdsLoader
-import tech.done.adsdk.tracking.RetryingTrackingEngine
 
 class MainActivity : ComponentActivity() {
 
@@ -39,9 +38,7 @@ class MainActivity : ComponentActivity() {
         }
         this.exo = exo
 
-        val network = SampleNetworkLayer(this)
-        val tracking = RetryingTrackingEngine(network)
-        val adsLoader = Media3AdsLoader(network = network, tracking = tracking, scope = scope)
+        val adsLoader = Media3AdsLoader(context = this, scope = scope)
         this.adsLoader = adsLoader
 
         setContent {
