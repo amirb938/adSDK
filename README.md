@@ -140,6 +140,14 @@ class PlayerActivity : AppCompatActivity() {
             setAdMarkersContainerView(contentPlayerView)
         }
 
+        // Reliable signal for custom ad playback (useful for Compose/custom controllers).
+        adsLoader.isAdPlaying
+            .onEach { adPlaying ->
+                // Hide content controls/overlays while ads are showing.
+                // controllerVisible = !adPlaying
+            }
+            .launchIn(scope)
+
         // IMA-like: only an adTagUri.
         adsLoader.requestAds("https://your-ad-server.example/vmap-or-vast")
         adsLoader.start()

@@ -1,14 +1,21 @@
 package tech.done.adsdk.player.media3.ima
 
 import android.content.Context
+import android.os.Handler
 import android.os.Looper
 import android.view.View
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import tech.done.adsdk.player.PlayerListener
 import tech.done.adsdk.core.DefaultAdEngine
 import tech.done.adsdk.network.NetworkLayer
 import tech.done.adsdk.player.media3.network.SampleNetworkLayer
@@ -18,6 +25,8 @@ import tech.done.adsdk.parser.model.VmapResponse
 import tech.done.adsdk.scheduler.VmapScheduler
 import tech.done.adsdk.tracking.RetryingTrackingEngine
 import tech.done.adsdk.tracking.TrackingEngine
+import tech.done.adsdk.player.media3.ima.internal.AdPlaybackSignal
+import java.util.concurrent.CopyOnWriteArraySet
 
 /**
  * IMA-like AdsLoader for Media3.
@@ -58,6 +67,21 @@ class Media3AdsLoader(
         fun onAdEnded()
     }
 
+    /**
+     * Optional listener API (Java-friendly) that mirrors [isAdPlaying] transitions.
+     *
+     * - [onAdStarted] is called exactly when [isAdPlaying] becomes `true`.
+     * - [onAdEnded] is called when [isAdPlaying] becomes `false` after previously being `true`
+     *   (ad finished, skipped, failed after starting, or was dismissed/cleaned up).
+     * - [onAdError] is called when the underlying ad player reports an error. If an ad had already
+     *   started, the loader will also transition [isAdPlaying] to `false` and call [onAdEnded].
+     */
+    interface AdPlaybackListener {
+        fun onAdStarted()
+        fun onAdEnded()
+        fun onAdError(t: Throwable?)
+    }
+
     private var contentPlayer: ExoPlayer? = null
     private var adDisplayContainer: AdDisplayContainerView? = null
     private var contentUi: ContentUi? = null
@@ -66,6 +90,35 @@ class Media3AdsLoader(
 
     private var engine: DefaultAdEngine? = null
     private var adapter: Media3ImaLikePlayerAdapter? = null
+
+    private val _isAdPlaying = MutableStateFlow(false)
+
+    /**
+     * Deterministic signal for whether an ad is currently showing.
+     *
+     * - Initial value is `false`.
+     * - Becomes `true` when an ad actually starts playback (first `isPlaying=true` while in-ad).
+     * - Stays `true` for the rest of the ad break even if the ad is paused/buffering.
+     * - Becomes `false` when the ad finishes, is skipped, errors (after starting), or when [release]
+     *   is called and ad playback is cleaned up.
+     *
+     * Host apps should use this to hide overlays/controllers (e.g., Compose player controls) during ads.
+     */
+    val isAdPlaying: StateFlow<Boolean> = _isAdPlaying.asStateFlow()
+
+    private val adPlaybackListeners = CopyOnWriteArraySet<AdPlaybackListener>()
+    private var adPlaybackSignal = AdPlaybackSignal()
+    private var observeJob: Job? = null
+    private var adapterPlayerListener: PlayerListener? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    fun addListener(listener: AdPlaybackListener) {
+        adPlaybackListeners += listener
+    }
+
+    fun removeListener(listener: AdPlaybackListener) {
+        adPlaybackListeners -= listener
+    }
 
     fun setPlayer(player: ExoPlayer?) {
         contentPlayer = player
@@ -107,6 +160,25 @@ class Media3AdsLoader(
     }
 
     fun release() {
+        // Ensure callers see a clean, deterministic end state, and listeners don't miss the final transition.
+        val finalEvents = adPlaybackSignal.onReleased()
+        if (Looper.getMainLooper() == Looper.myLooper()) {
+            applyAdPlaybackEvents(finalEvents)
+            adPlaybackListeners.clear()
+        } else {
+            mainHandler.post {
+                applyAdPlaybackEvents(finalEvents)
+                adPlaybackListeners.clear()
+            }
+        }
+
+        runCatching { observeJob?.cancel() }
+        observeJob = null
+        adapterPlayerListener?.let { l ->
+            runCatching { adapter?.playerAdapter?.removeListener(l) }
+        }
+        adapterPlayerListener = null
+
         adapter?.release()
         adapter = null
         engine?.release()
@@ -164,6 +236,9 @@ class Media3AdsLoader(
             "Media3AdsLoader must be configured on the main thread."
         }
 
+        // Rebuilding is a cleanup boundary: ensure any previous ad signal is ended.
+        applyAdPlaybackEvents(adPlaybackSignal.onReleased())
+
         adapter?.release()
         adapter = Media3ImaLikePlayerAdapter(
             contentPlayer = player,
@@ -177,6 +252,34 @@ class Media3AdsLoader(
             },
         )
 
+        // Re-wire ad playback observers to the new adapter.
+        runCatching { observeJob?.cancel() }
+        observeJob = null
+
+        adapterPlayerListener?.let { l ->
+            runCatching { adapter?.playerAdapter?.removeListener(l) }
+        }
+        adapterPlayerListener = object : PlayerListener {
+            override fun onPlayerError(throwable: Throwable) {
+                // Always marshal to main for consistent signal ordering.
+                scope.launch(Dispatchers.Main.immediate) {
+                    applyAdPlaybackEvents(adPlaybackSignal.onAdError(throwable))
+                }
+            }
+        }.also { adapter!!.playerAdapter.addListener(it) }
+
+        // Observe state on main to ensure thread-safety and predictable ordering.
+        observeJob = scope.launch(Dispatchers.Main.immediate) {
+            adapter!!.state.collectLatest { s ->
+                applyAdPlaybackEvents(
+                    adPlaybackSignal.onPlayerState(
+                        inAd = s.isInAd,
+                        isPlaying = s.isPlaying,
+                    ),
+                )
+            }
+        }
+
         engine?.release()
         engine = DefaultAdEngine(
             player = adapter!!.playerAdapter,
@@ -187,6 +290,31 @@ class Media3AdsLoader(
             tracking = tracking,
             mainDispatcher = Dispatchers.Main,
         ).apply { initialize() }
+    }
+
+    private fun applyAdPlaybackEvents(events: List<AdPlaybackSignal.Event>) {
+        // Main-thread invariant: callers asked for main-thread transitions.
+        if (Looper.getMainLooper() != Looper.myLooper()) {
+            // Fallback: make it safe even if called from an unexpected thread.
+            scope.launch(Dispatchers.Main.immediate) { applyAdPlaybackEvents(events) }
+            return
+        }
+
+        for (e in events) {
+            when (e) {
+                is AdPlaybackSignal.Event.Started -> {
+                    _isAdPlaying.value = true
+                    adPlaybackListeners.forEach { it.onAdStarted() }
+                }
+                is AdPlaybackSignal.Event.Ended -> {
+                    _isAdPlaying.value = false
+                    adPlaybackListeners.forEach { it.onAdEnded() }
+                }
+                is AdPlaybackSignal.Event.Error -> {
+                    adPlaybackListeners.forEach { it.onAdError(e.throwable) }
+                }
+            }
+        }
     }
 
     private enum class XmlKind { Vmap, Vast, Unknown }
