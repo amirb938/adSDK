@@ -22,18 +22,29 @@ import tech.done.adsdk.player.PlayerState
 
 /**
  * Bridges SDK core PlayerAdapter to:
- * - user content ExoPlayer + PlayerView
+ * - user content ExoPlayer (any rendering surface is owned by the host app)
  * - SDK-owned ad ExoPlayer + PlayerView rendered inside AdDisplayContainerView
  *
  * No re-parenting of the content view is performed (TV safe).
  */
 internal class Media3ImaLikePlayerAdapter(
     private val contentPlayer: ExoPlayer,
-    private val contentPlayerView: PlayerView,
     private val adDisplayContainer: AdDisplayContainerView,
     private val scope: CoroutineScope,
+    private val contentUi: ContentUi? = null,
     private val pollIntervalMs: Long = 250L,
 ) {
+    /**
+     * Optional callbacks to let the host suppress its own content UI during ads.
+     *
+     * This intentionally does NOT depend on Media3's PlayerView. Hosts can implement it however
+     * they render controls (Compose, custom Views, etc).
+     */
+    interface ContentUi {
+        fun onAdStarted()
+        fun onAdEnded()
+    }
+
     private val adPlayer: ExoPlayer = ExoPlayer.Builder(adDisplayContainer.context)
         .setLooper(Looper.getMainLooper())
         .build()
@@ -147,7 +158,7 @@ internal class Media3ImaLikePlayerAdapter(
         contentPlayer.playWhenReady = false
         contentPlayer.pause()
 
-        suppressContentControllers(true)
+        contentUi?.onAdStarted()
 
         adPlayerView.visibility = View.VISIBLE
         adOverlayView.setVisible(true)
@@ -167,7 +178,7 @@ internal class Media3ImaLikePlayerAdapter(
         adPlayerView.visibility = View.GONE
         adOverlayView.setVisible(false)
 
-        suppressContentControllers(false)
+        contentUi?.onAdEnded()
 
         val item = savedContentItem
         if (item != null) {
@@ -180,20 +191,6 @@ internal class Media3ImaLikePlayerAdapter(
         }
 
         _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null)
-    }
-
-    private fun suppressContentControllers(inAd: Boolean) {
-        contentPlayerView.useController = !inAd
-        if (inAd) {
-            contentPlayerView.hideController()
-            contentPlayerView.setControllerAutoShow(false)
-            contentPlayerView.setControllerHideOnTouch(false)
-            contentPlayerView.setOnTouchListener { _, _ -> true }
-        } else {
-            contentPlayerView.setOnTouchListener(null)
-            contentPlayerView.setControllerAutoShow(true)
-            contentPlayerView.setControllerHideOnTouch(true)
-        }
     }
 
     private fun startPolling() {

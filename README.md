@@ -135,8 +135,9 @@ class PlayerActivity : AppCompatActivity() {
             scope = scope,
         ).apply {
             setPlayer(contentPlayer)
-            setPlayerView(contentPlayerView)
             setAdDisplayContainer(adDisplayContainer)
+            // Optional: if you want yellow ad markers on the seekbar.
+            setAdMarkersContainerView(contentPlayerView)
         }
 
         // IMA-like: only an adTagUri.
@@ -175,7 +176,8 @@ fun PlayerScreen() {
                 PlayerView(ctx).apply {
                     player = contentPlayer
                     adsLoader.setPlayer(contentPlayer)
-                    adsLoader.setPlayerView(this)
+                    // Optional: if you want yellow ad markers on the seekbar.
+                    adsLoader.setAdMarkersContainerView(this)
                 }
             }
         )

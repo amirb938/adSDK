@@ -3,7 +3,6 @@ package tech.done.adsdk.player.media3.ima
 import android.os.Looper
 import android.view.View
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -24,8 +23,10 @@ import tech.done.adsdk.tracking.TrackingEngine
  * Usage:
  * - Create once, keep as a field.
  * - Call [setPlayer] with the app content player.
- * - Call [setPlayerView] to allow SDK to suppress content controllers during ads.
  * - Call [setAdDisplayContainer] for where ad video should render.
+ * - Optional: call [setContentUi] to let the host suppress its own controls during ads.
+ * - Optional: call [setAdMarkersContainerView] if the host wants "yellow ad markers" on a timebar.
+ * - Optional: call [setVideoSurfaceView] if the SDK/OMSDK needs the content surface dimensions.
  * - Call [requestAdsFromVmapXml] (or adTagUrl variant in future) then [start].
  */
 class Media3AdsLoader(
@@ -33,9 +34,22 @@ class Media3AdsLoader(
     private val tracking: TrackingEngine = RetryingTrackingEngine(network),
     private val scope: CoroutineScope = MainScope(),
 ) {
+    /**
+     * Optional callbacks to let the host suppress its own content UI during ads.
+     *
+     * This intentionally does NOT depend on Media3's PlayerView. Hosts can implement it however
+     * they render controls (Compose, custom Views, etc).
+     */
+    interface ContentUi {
+        fun onAdStarted()
+        fun onAdEnded()
+    }
+
     private var contentPlayer: ExoPlayer? = null
-    private var contentPlayerView: PlayerView? = null
     private var adDisplayContainer: AdDisplayContainerView? = null
+    private var contentUi: ContentUi? = null
+    private var adMarkersContainerView: View? = null
+    private var videoSurfaceView: View? = null
 
     private var engine: DefaultAdEngine? = null
     private var adapter: Media3ImaLikePlayerAdapter? = null
@@ -45,14 +59,38 @@ class Media3AdsLoader(
         rebuildIfReady()
     }
 
-    fun setPlayerView(playerView: PlayerView?) {
-        contentPlayerView = playerView
-        rebuildIfReady()
-    }
-
     fun setAdDisplayContainer(container: AdDisplayContainerView?) {
         adDisplayContainer = container
         rebuildIfReady()
+    }
+
+    /**
+     * Optional hook for hosts to hide/disable their content controls during ads.
+     *
+     * This replaces the old `setPlayerView(...)` dependency.
+     */
+    fun setContentUi(contentUi: ContentUi?) {
+        this.contentUi = contentUi
+        rebuildIfReady()
+    }
+
+    /**
+     * Optional root view that contains a Media3 TimeBar (usually `R.id.exo_progress`).
+     *
+     * If provided, the loader will try (best-effort) to apply "yellow ad markers" like IMA.
+     * This can be a `PlayerView`, a custom controls layout, or any ViewGroup containing the timebar.
+     */
+    fun setAdMarkersContainerView(view: View?) {
+        adMarkersContainerView = view
+    }
+
+    /**
+     * Optional view that represents the content video surface (e.g., a TextureView inside a FrameLayout).
+     *
+     * Use this if the SDK needs to query surface dimensions/position (e.g., for VPAID/OMSDK).
+     */
+    fun setVideoSurfaceView(view: View?) {
+        videoSurfaceView = view
     }
 
     fun release() {
@@ -61,12 +99,14 @@ class Media3AdsLoader(
         engine?.release()
         engine = null
         contentPlayer = null
-        contentPlayerView = null
         adDisplayContainer = null
+        contentUi = null
+        adMarkersContainerView = null
+        videoSurfaceView = null
     }
 
     fun requestAdsFromVmapXml(vmapXml: String) {
-        val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setPlayerView/setAdDisplayContainer first.")
+        val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
         scope.launch(Dispatchers.Main.immediate) {
             applyAdMarkersFromVmapXmlOrClear(vmapXml)
             e.loadVmap(vmapXml)
@@ -79,7 +119,7 @@ class Media3AdsLoader(
      * The SDK will fetch it, detect whether it is VMAP or VAST, and then start playback accordingly.
      */
     fun requestAds(adTagUri: String, timeoutMs: Long = 10_000L) {
-        val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setPlayerView/setAdDisplayContainer first.")
+        val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
         scope.launch(network.dispatcher) {
             val resp = network.get(adTagUri, timeoutMs = timeoutMs)
             if (!resp.isSuccessful) error("Failed to load adTagUri. code=${resp.code} url=$adTagUri")
@@ -98,16 +138,15 @@ class Media3AdsLoader(
     }
 
     fun start() {
-        val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setPlayerView/setAdDisplayContainer first.")
+        val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
         e.start()
     }
 
     private fun rebuildIfReady() {
         val player = contentPlayer ?: return
-        val view = contentPlayerView ?: return
         val container = adDisplayContainer ?: return
 
-        // Must run on main looper because PlayerView + ExoPlayer must be main-thread bound.
+        // Must run on main looper because ExoPlayer must be main-thread bound.
         check(Looper.getMainLooper() == Looper.myLooper()) {
             "Media3AdsLoader must be configured on the main thread."
         }
@@ -115,9 +154,14 @@ class Media3AdsLoader(
         adapter?.release()
         adapter = Media3ImaLikePlayerAdapter(
             contentPlayer = player,
-            contentPlayerView = view,
             adDisplayContainer = container,
             scope = scope,
+            contentUi = contentUi?.let { host ->
+                object : Media3ImaLikePlayerAdapter.ContentUi {
+                    override fun onAdStarted() = host.onAdStarted()
+                    override fun onAdEnded() = host.onAdEnded()
+                }
+            },
         )
 
         engine?.release()
@@ -167,15 +211,15 @@ class Media3AdsLoader(
     }
 
     /**
-     * Enables "yellow ad markers" on the PlayerView seekbar (like IMA).
+     * Enables "yellow ad markers" on a Media3 timebar (like IMA).
      *
      * This is best-effort and depends on the concrete time bar implementation.
      */
     private fun applyAdMarkersFromVmapXmlOrClear(vmapXml: String) {
-        val playerView = contentPlayerView ?: return
+        val root = adMarkersContainerView ?: return
         val parsed: VmapResponse = runCatching { VmapPullParser().parse(vmapXml) }.getOrNull()
             ?: run {
-                applyAdMarkers(playerView, longArrayOf())
+                applyAdMarkers(root, longArrayOf())
                 return
             }
 
@@ -187,12 +231,12 @@ class Media3AdsLoader(
             .sorted()
             .toLongArray()
 
-        applyAdMarkers(playerView, markersMs)
+        applyAdMarkers(root, markersMs)
     }
 
-    private fun applyAdMarkers(playerView: PlayerView, adGroupTimesMs: LongArray) {
-        // media3 UI uses a timebar with id exo_progress in most skins.
-        val timeBar = playerView.findViewById<View?>(androidx.media3.ui.R.id.exo_progress) ?: return
+    private fun applyAdMarkers(rootView: View, adGroupTimesMs: LongArray) {
+        // Media3 UI uses a timebar with id exo_progress in most skins.
+        val timeBar = rootView.findViewById<View?>(androidx.media3.ui.R.id.exo_progress) ?: return
 
         // Try common signatures via reflection (API varies across media3 versions).
         val played = BooleanArray(adGroupTimesMs.size) { false }
@@ -224,6 +268,16 @@ class Media3AdsLoader(
         runCatching {
             cls.getMethod("setPlayedAdMarkerColor", Int::class.javaPrimitiveType).invoke(timeBar, 0xFFFFC107.toInt())
         }
+    }
+
+    /**
+     * Helper for integrations that need the content surface size without a PlayerView.
+     *
+     * Returns the last known laid-out size (0 if not laid out yet).
+     */
+    fun getVideoSurfaceSizePx(): Pair<Int, Int> {
+        val v = videoSurfaceView ?: return 0 to 0
+        return v.width to v.height
     }
 }
 

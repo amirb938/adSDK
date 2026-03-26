@@ -54,7 +54,8 @@ class MainActivity : ComponentActivity() {
                                 PlayerView(ctx).apply {
                                     player = exo
                                     adsLoader.setPlayer(exo)
-                                    adsLoader.setPlayerView(this)
+                                    // Optional: if you want yellow ad markers on the seekbar.
+                                    adsLoader.setAdMarkersContainerView(this)
                                 }
                             },
                         )
