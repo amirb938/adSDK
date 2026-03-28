@@ -21,8 +21,10 @@ interface PlayerAdapter {
     /**
      * Request playback of an ad media URI. Implementation decides whether this is
      * a separate player instance, a transient media item, etc.
+     *
+     * @param adSkipOffsetMs When non-null, time from linear ad start when skip is allowed (from VAST).
      */
-    fun playAd(mediaUri: String)
+    fun playAd(mediaUri: String, adSkipOffsetMs: Long? = null)
 
     /**
      * Resume main content after an ad break (or after ad failure).
@@ -43,5 +45,7 @@ data class PlayerState(
     val contentDurationMs: Long? = null,
     val adPositionMs: Long = 0L,
     val adDurationMs: Long? = null,
+    /** Resolved skip offset from VAST for the current linear ad; null if not skippable. */
+    val adSkipOffsetMs: Long? = null,
 )
 

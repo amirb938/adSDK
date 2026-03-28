@@ -76,7 +76,7 @@ class Media3PlayerAdapter(
         // Enforcement is UI/controller-side; adapter stores the policy.
     }
 
-    override fun playAd(mediaUri: String) {
+    override fun playAd(mediaUri: String, adSkipOffsetMs: Long?) {
         AdSdkDebugLog.d(logTag, "playAd mediaUri=$mediaUri (wasInAd=${_state.value.isInAd})")
         if (!_state.value.isInAd) {
             contentItem = player.currentMediaItem
@@ -84,7 +84,12 @@ class Media3PlayerAdapter(
             AdSdkDebugLog.d(logTag, "saved content positionMs=$contentPositionMs item=${contentItem?.mediaId}")
         }
 
-        _state.value = _state.value.copy(isInAd = true, adPositionMs = 0L, adDurationMs = null)
+        _state.value = _state.value.copy(
+            isInAd = true,
+            adPositionMs = 0L,
+            adDurationMs = null,
+            adSkipOffsetMs = adSkipOffsetMs,
+        )
 
         player.setMediaItem(MediaItem.fromUri(mediaUri))
         player.prepare()
@@ -94,7 +99,7 @@ class Media3PlayerAdapter(
     override fun resumeContent() {
         val item = contentItem ?: return
         AdSdkDebugLog.d(logTag, "resumeContent seekToMs=$contentPositionMs item=${item.mediaId}")
-        _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null)
+        _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null, adSkipOffsetMs = null)
 
         player.setMediaItem(item)
         player.prepare()

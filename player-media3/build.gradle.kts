@@ -18,6 +18,7 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs = listOf("-XXLanguage:+PropertyParamAnnotationDefaultTargetMode")
     }
 }
 
@@ -32,6 +33,7 @@ dependencies {
     implementation(libs.media3.common)
     implementation(libs.media3.ui)
     implementation(libs.coroutines.android)
+    implementation(libs.androidx.annotation)
 
     testImplementation(libs.junit4)
 }

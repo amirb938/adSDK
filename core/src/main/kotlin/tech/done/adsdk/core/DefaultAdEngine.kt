@@ -5,6 +5,7 @@ import tech.done.adsdk.network.NetworkLayer
 import tech.done.adsdk.parser.VastParser
 import tech.done.adsdk.parser.VmapParser
 import tech.done.adsdk.parser.model.Position
+import tech.done.adsdk.parser.model.SkipOffset
 import tech.done.adsdk.parser.model.VastAd
 import tech.done.adsdk.scheduler.AdScheduler
 import tech.done.adsdk.scheduler.AdTimeline
@@ -294,10 +295,14 @@ class DefaultAdEngine(
         tracker.fireStart()
 
         val mediaUri = first.mediaFiles.first().uri
-        AdSdkDebugLog.d(logTag, "playAd mediaUri=$mediaUri bufferTimeoutMs=$bufferTimeoutMs")
+        val skipOffsetMs = resolveSkipOffsetToMs(first.skipOffset, dur)
+        AdSdkDebugLog.d(
+            logTag,
+            "playAd mediaUri=$mediaUri bufferTimeoutMs=$bufferTimeoutMs skipOffsetMs=$skipOffsetMs",
+        )
 
         // Start playback (non-blocking) then await ad end signal.
-        player.playAd(mediaUri)
+        player.playAd(mediaUri, skipOffsetMs)
 
         // Observe isPlaying changes during ad (pause/resume).
         val playStateJob = scope.launch {
@@ -472,6 +477,18 @@ class DefaultAdEngine(
             val s = secAndMs[0].toLongOrNull() ?: return null
             val ms = if (secAndMs.size > 1) secAndMs[1].padEnd(3, '0').take(3).toLongOrNull() ?: 0L else 0L
             return (((h * 60 + m) * 60 + s) * 1000L) + ms
+        }
+    }
+
+    private fun resolveSkipOffsetToMs(skip: SkipOffset?, durationMs: Long?): Long? {
+        return when (skip) {
+            is SkipOffset.TimeMs -> skip.value.coerceAtLeast(0L)
+            is SkipOffset.Percent -> {
+                val d = durationMs ?: return null
+                if (d <= 0L) return null
+                (d * skip.value.toLong()) / 100L
+            }
+            null -> null
         }
     }
 

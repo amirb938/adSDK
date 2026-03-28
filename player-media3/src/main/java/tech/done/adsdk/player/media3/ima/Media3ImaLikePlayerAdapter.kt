@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import tech.done.adsdk.player.media3.ima.AdSdkUiConfig
 import tech.done.adsdk.player.media3.ima.internal.AdOverlayView
 import tech.done.adsdk.player.PlayerAdapter
 import tech.done.adsdk.player.PlayerListener
@@ -33,6 +34,7 @@ internal class Media3ImaLikePlayerAdapter(
     private val scope: CoroutineScope,
     private val contentUi: ContentUi? = null,
     private val pollIntervalMs: Long = 250L,
+    private val uiConfig: AdSdkUiConfig? = null,
 ) {
     /**
      * Optional callbacks to let the host suppress its own content UI during ads.
@@ -79,7 +81,7 @@ internal class Media3ImaLikePlayerAdapter(
         override fun addListener(listener: PlayerListener) { listeners += listener }
         override fun removeListener(listener: PlayerListener) { listeners -= listener }
         override fun setSeekingEnabled(enabled: Boolean) { /* UI-side policy */ }
-        override fun playAd(mediaUri: String) = startAd(mediaUri)
+        override fun playAd(mediaUri: String, adSkipOffsetMs: Long?) = startAd(mediaUri, adSkipOffsetMs)
         override fun resumeContent() = endAdAndResumeContent()
         override fun pause() { if (_state.value.isInAd) adPlayer.pause() else contentPlayer.pause() }
         override fun play() { if (_state.value.isInAd) adPlayer.play() else contentPlayer.play() }
@@ -120,6 +122,7 @@ internal class Media3ImaLikePlayerAdapter(
     init {
         contentPlayer.addListener(contentListener)
         adPlayer.addListener(adListener)
+        uiConfig?.let { adOverlayView.applyUiConfig(it) }
         ensureAdViewsAdded()
         startPolling()
     }
@@ -145,7 +148,7 @@ internal class Media3ImaLikePlayerAdapter(
         }
     }
 
-    private fun startAd(mediaUri: String) {
+    private fun startAd(mediaUri: String, adSkipOffsetMs: Long?) {
         ensureAdViewsAdded()
 
         if (!_state.value.isInAd) {
@@ -162,7 +165,13 @@ internal class Media3ImaLikePlayerAdapter(
 
         adPlayerView.visibility = View.VISIBLE
         adOverlayView.setVisible(true)
-        _state.value = _state.value.copy(isInAd = true, adPositionMs = 0L, adDurationMs = null, isPlaying = false)
+        _state.value = _state.value.copy(
+            isInAd = true,
+            adPositionMs = 0L,
+            adDurationMs = null,
+            isPlaying = false,
+            adSkipOffsetMs = adSkipOffsetMs,
+        )
 
         adPlayer.setMediaItem(MediaItem.fromUri(mediaUri))
         adPlayer.prepare()
@@ -190,7 +199,7 @@ internal class Media3ImaLikePlayerAdapter(
             contentPlayer.playWhenReady = savedContentPlayWhenReady
         }
 
-        _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null)
+        _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null, adSkipOffsetMs = null)
     }
 
     private fun startPolling() {
@@ -202,13 +211,18 @@ internal class Media3ImaLikePlayerAdapter(
                     val pos = adPlayer.currentPosition
                     val dur = adPlayer.duration.takeIf { it > 0 }
                     _state.value = _state.value.copy(adPositionMs = pos, adDurationMs = dur)
-                    adOverlayView.render(inAd = true, adPositionMs = pos, adDurationMs = dur)
+                    adOverlayView.render(
+                        inAd = true,
+                        adPositionMs = pos,
+                        adDurationMs = dur,
+                        skipOffsetMs = _state.value.adSkipOffsetMs,
+                    )
                     listeners.forEach { it.onAdProgress(pos, dur) }
                 } else {
                     val pos = contentPlayer.currentPosition
                     val dur = contentPlayer.duration.takeIf { it > 0 }
                     _state.value = _state.value.copy(contentPositionMs = pos, contentDurationMs = dur)
-                    adOverlayView.render(inAd = false, adPositionMs = 0L, adDurationMs = null)
+                    adOverlayView.render(inAd = false, adPositionMs = 0L, adDurationMs = null, skipOffsetMs = null)
                 }
                 delay(pollIntervalMs)
             }

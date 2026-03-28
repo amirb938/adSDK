@@ -68,13 +68,18 @@ class ExoPlayer2Adapter(
         // UI/controller-side enforcement; stored here if you want to expose later.
     }
 
-    override fun playAd(mediaUri: String) {
+    override fun playAd(mediaUri: String, adSkipOffsetMs: Long?) {
         if (!_state.value.isInAd) {
             contentItem = player.currentMediaItem
             contentPositionMs = player.currentPosition
         }
 
-        _state.value = _state.value.copy(isInAd = true, adPositionMs = 0L, adDurationMs = null)
+        _state.value = _state.value.copy(
+            isInAd = true,
+            adPositionMs = 0L,
+            adDurationMs = null,
+            adSkipOffsetMs = adSkipOffsetMs,
+        )
 
         player.setMediaItem(MediaItem.fromUri(mediaUri))
         player.prepare()
@@ -83,7 +88,7 @@ class ExoPlayer2Adapter(
 
     override fun resumeContent() {
         val item = contentItem ?: return
-        _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null)
+        _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null, adSkipOffsetMs = null)
 
         player.setMediaItem(item)
         player.prepare()

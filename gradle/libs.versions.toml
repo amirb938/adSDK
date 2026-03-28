@@ -1,5 +1,6 @@
 [versions]
 android-gradle-plugin = "8.7.3"
+annotation = "1.9.1"
 kotlin = "2.2.21"
 
 compileSdk = "35"
@@ -21,6 +22,7 @@ junit4 = "4.13.2"
 kotlinx_coroutines = "1.10.2"
 
 [libraries]
+androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "annotation" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core-ktx" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity-compose" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "androidx-lifecycle" }

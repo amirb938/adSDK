@@ -4,8 +4,8 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
-import android.util.TypedValue
 import android.util.AttributeSet
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -13,6 +13,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import tech.done.adsdk.player.media3.R
+import tech.done.adsdk.player.media3.ima.AdSdkUiConfig
 import kotlin.math.ceil
 
 internal class AdOverlayView @JvmOverloads constructor(
@@ -29,7 +30,13 @@ internal class AdOverlayView @JvmOverloads constructor(
             resources.displayMetrics,
         ).toInt()
 
-    private fun createSkipButtonBackground(): StateListDrawable {
+    private fun createSkipButtonBackground(
+        accentColor: Int?,
+        cornerRadiusDp: Int?,
+    ): StateListDrawable {
+        val accent = accentColor ?: 0xFFFFC107.toInt()
+        val radiusPx = dp(cornerRadiusDp ?: 10).toFloat()
+
         fun shape(
             fillColor: Int,
             strokeWidthDp: Int,
@@ -37,7 +44,7 @@ internal class AdOverlayView @JvmOverloads constructor(
         ): GradientDrawable =
             GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(10).toFloat()
+                cornerRadius = radiusPx
                 setColor(fillColor)
                 setStroke(dp(strokeWidthDp), strokeColor)
             }
@@ -45,7 +52,7 @@ internal class AdOverlayView @JvmOverloads constructor(
         val focused = shape(
             fillColor = 0xAA000000.toInt(),
             strokeWidthDp = 2,
-            strokeColor = 0xFFFFC107.toInt(),
+            strokeColor = accent,
         )
         val normal = shape(
             fillColor = 0x88000000.toInt(),
@@ -84,7 +91,7 @@ internal class AdOverlayView @JvmOverloads constructor(
         isFocusable = true
         isFocusableInTouchMode = true
         setPadding(dp(16), dp(8), dp(16), dp(8))
-        background = createSkipButtonBackground()
+        background = createSkipButtonBackground(null, null)
     }
 
     var onSkip: (() -> Unit)? = null
@@ -123,6 +130,15 @@ internal class AdOverlayView @JvmOverloads constructor(
         visibility = View.GONE
     }
 
+    fun applyUiConfig(config: AdSdkUiConfig) {
+        config.customTypeface?.let { tf ->
+            remainingText.typeface = tf
+            skipInText.typeface = tf
+            skipButton.typeface = tf
+        }
+        skipButton.background = createSkipButtonBackground(config.accentColor, config.buttonCornerRadiusDp)
+    }
+
     fun setVisible(visible: Boolean) {
         visibility = if (visible) View.VISIBLE else View.GONE
     }
@@ -131,7 +147,7 @@ internal class AdOverlayView @JvmOverloads constructor(
         inAd: Boolean,
         adPositionMs: Long,
         adDurationMs: Long?,
-        skipOffsetMs: Long = 3_000L,
+        skipOffsetMs: Long?,
     ) {
         setVisible(inAd)
         if (!inAd) {
@@ -139,15 +155,36 @@ internal class AdOverlayView @JvmOverloads constructor(
             return
         }
 
-        val canSkip = adPositionMs >= skipOffsetMs
-        // INVISIBLE keeps height stable and prevents UI "jump".
-        skipButton.visibility = if (canSkip) View.VISIBLE else View.INVISIBLE
-        if (canSkip && !lastCanSkip) {
-            // TV UX: default focus should land on Skip as soon as it becomes available.
-            skipButton.post {
-                if (visibility == View.VISIBLE && skipButton.visibility == View.VISIBLE && !skipButton.hasFocus()) {
-                    skipButton.requestFocus()
+        val canSkip = skipOffsetMs != null && adPositionMs >= skipOffsetMs
+        if (skipOffsetMs == null) {
+            skipButton.visibility = View.INVISIBLE
+            skipInText.visibility = View.INVISIBLE
+            skipInText.text = ""
+        } else {
+            skipButton.visibility = if (canSkip) View.VISIBLE else View.INVISIBLE
+            if (canSkip && !lastCanSkip) {
+                skipButton.post {
+                    if (visibility == View.VISIBLE && skipButton.visibility == View.VISIBLE && !skipButton.hasFocus()) {
+                        skipButton.requestFocus()
+                    }
                 }
+            }
+            val skipInSec =
+                if (!canSkip) {
+                    ceil(((skipOffsetMs - adPositionMs).coerceAtLeast(0L)) / 1000.0).toInt()
+                } else {
+                    null
+                }
+            if (skipInSec != null) {
+                skipInText.visibility = View.VISIBLE
+                skipInText.text =
+                    context.getString(
+                        R.string.adsdk_ad_skip_in_seconds,
+                        skipInSec,
+                    )
+            } else {
+                skipInText.visibility = View.INVISIBLE
+                skipInText.text = ""
             }
         }
         lastCanSkip = canSkip
@@ -156,8 +193,6 @@ internal class AdOverlayView @JvmOverloads constructor(
             ceil(((dur - adPositionMs).coerceAtLeast(0L)) / 1000.0).toInt()
         }
 
-        val skipInSec = if (canSkip) null else ceil(((skipOffsetMs - adPositionMs).coerceAtLeast(0L)) / 1000.0).toInt()
-
         remainingText.text =
             remainingSec?.let {
                 context.getString(
@@ -165,19 +200,5 @@ internal class AdOverlayView @JvmOverloads constructor(
                     it,
                 )
             }.orEmpty()
-
-        if (skipInSec != null) {
-            skipInText.visibility = View.VISIBLE
-            skipInText.text =
-                context.getString(
-                    R.string.adsdk_ad_skip_in_seconds,
-                    skipInSec,
-                )
-        } else {
-            // INVISIBLE keeps height stable and prevents UI "jump".
-            skipInText.visibility = View.INVISIBLE
-            skipInText.text = ""
-        }
     }
 }
-

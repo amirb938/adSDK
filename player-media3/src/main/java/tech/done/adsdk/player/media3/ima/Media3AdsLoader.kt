@@ -90,6 +90,7 @@ class Media3AdsLoader(
 
     private var engine: DefaultAdEngine? = null
     private var adapter: Media3ImaLikePlayerAdapter? = null
+    private var uiConfig: AdSdkUiConfig? = null
 
     private val _isAdPlaying = MutableStateFlow(false)
 
@@ -157,6 +158,11 @@ class Media3AdsLoader(
      */
     fun setVideoSurfaceView(view: View?) {
         videoSurfaceView = view
+    }
+
+    fun setUiConfig(config: AdSdkUiConfig) {
+        uiConfig = config
+        rebuildIfReady()
     }
 
     fun release() {
@@ -250,6 +256,7 @@ class Media3AdsLoader(
                     override fun onAdEnded() = host.onAdEnded()
                 }
             },
+            uiConfig = uiConfig,
         )
 
         // Re-wire ad playback observers to the new adapter.

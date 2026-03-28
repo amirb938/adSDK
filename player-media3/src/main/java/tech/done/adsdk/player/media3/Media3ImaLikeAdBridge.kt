@@ -37,7 +37,9 @@ class Media3ImaLikeAdBridge(
 ) {
     private val logTag = "Media3ImaBridge"
 
-    private var pendingAdUri: String? = null
+    private data class PendingAd(val uri: String, val adSkipOffsetMs: Long?)
+
+    private var pendingAd: PendingAd? = null
     private var isAttachingOverlay: Boolean = false
 
     // Force main looper to avoid creating players on a transient thread/looper (Compose can create Views during setup).
@@ -87,8 +89,8 @@ class Media3ImaLikeAdBridge(
             // SDK-level policy hook; UI-side enforcement is done in the host app.
         }
 
-        override fun playAd(mediaUri: String) {
-            startAd(mediaUri)
+        override fun playAd(mediaUri: String, adSkipOffsetMs: Long?) {
+            startAd(mediaUri, adSkipOffsetMs)
         }
 
         override fun resumeContent() {
@@ -193,10 +195,10 @@ class Media3ImaLikeAdBridge(
     private fun tryAttachOverlayAndMaybeStartPending() {
         ensureOverlayAttachedOrNull() ?: return
         // If overlay attached and an ad was requested before attach, start it now.
-        val uri = pendingAdUri ?: return
-        pendingAdUri = null
-        AdSdkDebugLog.d(logTag, "starting pending ad uri=$uri")
-        startAdInternal(uri)
+        val p = pendingAd ?: return
+        pendingAd = null
+        AdSdkDebugLog.d(logTag, "starting pending ad uri=${p.uri}")
+        startAdInternal(p.uri, p.adSkipOffsetMs)
     }
 
     private fun detachOverlay() {
@@ -204,17 +206,17 @@ class Media3ImaLikeAdBridge(
         overlayParent = null
     }
 
-    private fun startAd(mediaUri: String) {
+    private fun startAd(mediaUri: String, adSkipOffsetMs: Long?) {
         // If view not attached yet (Compose), defer starting ad until attach.
         if (ensureOverlayAttachedOrNull() == null) {
-            pendingAdUri = mediaUri
+            pendingAd = PendingAd(mediaUri, adSkipOffsetMs)
             AdSdkDebugLog.d(logTag, "deferring ad start until view attached uri=$mediaUri")
             return
         }
-        startAdInternal(mediaUri)
+        startAdInternal(mediaUri, adSkipOffsetMs)
     }
 
-    private fun startAdInternal(mediaUri: String) {
+    private fun startAdInternal(mediaUri: String, adSkipOffsetMs: Long?) {
         if (!_state.value.isInAd) {
             savedContentItem = contentPlayer.currentMediaItem
             savedContentPositionMs = contentPlayer.currentPosition
@@ -232,7 +234,13 @@ class Media3ImaLikeAdBridge(
         adPlayerView.visibility = View.VISIBLE
         adPlayerView.bringToFront()
 
-        _state.value = _state.value.copy(isInAd = true, adPositionMs = 0L, adDurationMs = null, isPlaying = false)
+        _state.value = _state.value.copy(
+            isInAd = true,
+            adPositionMs = 0L,
+            adDurationMs = null,
+            isPlaying = false,
+            adSkipOffsetMs = adSkipOffsetMs,
+        )
         AdSdkDebugLog.d(logTag, "startAd uri=$mediaUri savedPosMs=$savedContentPositionMs")
 
         adPlayer.setMediaItem(MediaItem.fromUri(mediaUri))
@@ -265,7 +273,7 @@ class Media3ImaLikeAdBridge(
             contentPlayer.playWhenReady = savedContentPlayWhenReady
         }
 
-        _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null)
+        _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null, adSkipOffsetMs = null)
     }
 
     private fun suppressContentControllers(inAd: Boolean) {
