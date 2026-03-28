@@ -7,21 +7,17 @@ plugins {
 }
 
 allprojects {
-    group = "tech.done.adsdk"
+    group = "tech.done.ads"
     version = "0.1.0-SNAPSHOT"
 }
 
 subprojects {
-    // Keep configuration minimal and module-local; avoid cross-module Android leakage.
-
-    // JitPack expects publishToMavenLocal to exist. Provide a default publication for
-    // JVM and Android library modules, while skipping app modules.
     plugins.withId("org.jetbrains.kotlin.jvm") {
         apply(plugin = "maven-publish")
 
-        extensions.configure<org.gradle.api.publish.PublishingExtension>("publishing") {
+        extensions.configure<PublishingExtension>("publishing") {
             publications {
-                create<org.gradle.api.publish.maven.MavenPublication>("maven") {
+                create<MavenPublication>("maven") {
                     from(components["java"])
                 }
             }
@@ -41,9 +37,9 @@ subprojects {
         }
 
         afterEvaluate {
-            extensions.configure<org.gradle.api.publish.PublishingExtension>("publishing") {
+            extensions.configure<PublishingExtension>("publishing") {
                 publications {
-                    create<org.gradle.api.publish.maven.MavenPublication>("maven") {
+                    create<MavenPublication>("maven") {
                         from(components["release"])
                     }
                 }

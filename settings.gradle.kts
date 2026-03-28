@@ -15,11 +15,10 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AdSDK"
+rootProject.name = "DMA"
 
 include(
     ":core",
-    ":api",
     ":parser",
     ":scheduler",
     ":tracking",

@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "tech.done.adsdk.player.media3"
+    namespace = "tech.done.ads.player.media3"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
@@ -20,9 +20,14 @@ android {
         jvmTarget = "17"
         freeCompilerArgs = listOf("-XXLanguage:+PropertyParamAnnotationDefaultTargetMode")
     }
+
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+    }
 }
 
 dependencies {
+    implementation(libs.timber)
     implementation(project(":player-common"))
     implementation(project(":core"))
     implementation(project(":parser"))
@@ -35,5 +40,5 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.androidx.annotation)
 
-    testImplementation(libs.junit4)
+    testImplementation(libs.junit.jupiter)
 }

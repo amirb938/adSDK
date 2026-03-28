@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "tech.done.adsdk.sample"
+    namespace = "tech.done.ads.sample"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "tech.done.adsdk.sample"
+        applicationId = "tech.done.ads.sample"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
@@ -18,6 +18,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     lint {
@@ -37,6 +38,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.timber)
     implementation(project(":core"))
     implementation(project(":parser"))
     implementation(project(":scheduler"))

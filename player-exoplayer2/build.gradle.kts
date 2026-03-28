@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "tech.done.adsdk.player.exoplayer2"
+    namespace = "tech.done.ads.player.exoplayer2"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
@@ -19,10 +19,16 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+    }
 }
 
 dependencies {
+    implementation(libs.timber)
     implementation(project(":player-common"))
     implementation(libs.exoplayer2.core)
     implementation(libs.coroutines.android)
+    testImplementation(libs.junit.jupiter)
 }

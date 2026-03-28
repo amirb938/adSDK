@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "tech.done.adsdk.ui.compose"
+    namespace = "tech.done.ads.ui.compose"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
@@ -30,11 +30,17 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+    }
 }
 
 dependencies {
+    implementation(libs.timber)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
+    testImplementation(libs.junit.jupiter)
 }

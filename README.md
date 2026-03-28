@@ -96,7 +96,7 @@ If you want to depend explicitly on modules from this repo (when published as se
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <tech.done.adsdk.player.media3.ima.AdDisplayContainerView
+    <tech.done.ads.player.media3.ima.AdDisplayContainerView
         android:id="@+id/adDisplayContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />

@@ -19,7 +19,9 @@ androidx-media3 = "1.9.2"
 exoplayer2 = "2.19.1"
 kxml2 = "2.3.0"
 junit4 = "4.13.2"
+junit5 = "5.11.4"
 kotlinx_coroutines = "1.10.2"
+timber = "5.0.1"
 
 [libraries]
 androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "annotation" }
@@ -42,9 +44,12 @@ compose-material3 = { module = "androidx.compose.material3:material3" }
 xmlpull-kxml2 = { module = "net.sf.kxml:kxml2", version.ref = "kxml2" }
 
 junit4 = { module = "junit:junit", version.ref = "junit4" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit5" }
 
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx_coroutines" }
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx_coroutines" }
+
+timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "android-gradle-plugin" }

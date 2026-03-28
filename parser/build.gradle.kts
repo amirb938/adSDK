@@ -1,16 +1,35 @@
 plugins {
-    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
 }
 
-kotlin {
-    jvmToolchain(17)
+android {
+    namespace = "tech.done.ads.parser"
+    compileSdk = libs.versions.compileSdk.get().toInt()
+
+    defaultConfig {
+        minSdk = libs.versions.minSdk.get().toInt()
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+    }
 }
 
 dependencies {
+    implementation(libs.timber)
+    implementation(project(":network"))
     implementation(libs.xmlpull.kxml2)
 
-    testImplementation(kotlin("test"))
-    testImplementation(libs.junit4)
+    testImplementation(libs.junit.jupiter)
     testImplementation(libs.coroutines.core)
 }
-
