@@ -75,7 +75,7 @@ class Media3PlayerAdapter(
         isSeekingEnabled = enabled
     }
 
-    override fun playAd(mediaUri: String, adSkipOffsetMs: Long?) {
+    override fun playAd(mediaUri: String, adSkipOffsetMs: Long?, simidInteractiveCreativeUrl: String?) {
         AdSdkDebugLog.d(logTag, "playAd mediaUri=$mediaUri (wasInAd=${_state.value.isInAd})")
         if (!_state.value.isInAd) {
             contentItem = player.currentMediaItem

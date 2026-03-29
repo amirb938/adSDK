@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import tech.done.ads.core.internal.AdSdkDebugLog
 import tech.done.ads.network.NetworkLayer
 import tech.done.ads.parser.VASTParser
@@ -345,13 +344,19 @@ class DefaultAdEngine(
         tracker.fireStart()
 
         val skipOffsetMs = resolveSkipOffsetToMs(first.skipOffset, dur)
+        val simidUrl =
+            if (first.interactiveApiFramework == "SIMID" && !first.interactiveCreativeUrl.isNullOrBlank()) {
+                first.interactiveCreativeUrl
+            } else {
+                null
+            }
         AdSdkDebugLog.d(
             logTag,
-            "playAd mediaUri=$mediaUri bufferTimeoutMs=$bufferTimeoutMs skipOffsetMs=$skipOffsetMs",
+            "playAd mediaUri=$mediaUri bufferTimeoutMs=$bufferTimeoutMs skipOffsetMs=$skipOffsetMs simidUrl=${simidUrl != null}",
         )
 
         dispatchAdsEvent(adsEventListener, AdsEventKind.AD_STARTED, breakId)
-        player.playAd(mediaUri, skipOffsetMs)
+        player.playAd(mediaUri, skipOffsetMs, simidUrl)
 
         val playStateJob = scope.launch {
             player.state
@@ -364,37 +369,37 @@ class DefaultAdEngine(
         }
 
         val waitMs = (dur?.plus(2_000L) ?: 30_000L).coerceAtLeast(5_000L)
-        AdSdkDebugLog.d(logTag, "awaitAdEnd timeoutMs=$waitMs")
+        AdSdkDebugLog.d(logTag, "awaitAdEnd maxPlayingMs=$waitMs")
         try {
-            withTimeout(waitMs) {
-                awaitAdEnd(
-                    onProgress = { posMs, durationMs ->
-                        tracker.onProgress(posMs, durationMs)
-                        dispatchAdsEvent(
-                            adsEventListener,
-                            AdsEventKind.AD_PROGRESS,
-                            breakId,
-                            AdsEventPayload(positionMs = posMs, durationMs = durationMs),
-                        )
-                    },
-                    onEnded = {
-                        scope.launch {
-                            tracker.fireComplete()
-                            dispatchAdsEvent(adsEventListener, AdsEventKind.AD_COMPLETED, breakId)
-                        }
-                    },
-                    onError = { t ->
-                        scope.launch { tracker.fireError() }
-                        dispatchAdsEvent(adsEventListener, AdsEventKind.AD_ERROR, breakId, AdsEventPayload(error = t))
-                    },
-                )
-            }
+            awaitAdEnd(
+                maxPlayingMs = waitMs,
+                onProgress = { posMs, durationMs ->
+                    tracker.onProgress(posMs, durationMs)
+                    dispatchAdsEvent(
+                        adsEventListener,
+                        AdsEventKind.AD_PROGRESS,
+                        breakId,
+                        AdsEventPayload(positionMs = posMs, durationMs = durationMs),
+                    )
+                },
+                onEnded = {
+                    scope.launch {
+                        tracker.fireComplete()
+                        dispatchAdsEvent(adsEventListener, AdsEventKind.AD_COMPLETED, breakId)
+                    }
+                },
+                onError = { t ->
+                    scope.launch { tracker.fireError() }
+                    dispatchAdsEvent(adsEventListener, AdsEventKind.AD_ERROR, breakId, AdsEventPayload(error = t))
+                },
+            )
         } finally {
             playStateJob.cancel()
         }
     }
 
     private suspend fun awaitAdEnd(
+        maxPlayingMs: Long,
         onProgress: (positionMs: Long, durationMs: Long?) -> Unit,
         onEnded: () -> Unit,
         onError: (Throwable) -> Unit,
@@ -417,6 +422,28 @@ class DefaultAdEngine(
         }
 
         player.addListener(listener)
+
+        val watchdogJob = scope.launch {
+            var playedNs = 0L
+            var lastNs = System.nanoTime()
+            while (!done.isCompleted) {
+                val nowNs = System.nanoTime()
+                val deltaNs = nowNs - lastNs
+                lastNs = nowNs
+
+                val s = player.state.value
+                if (s.isInAd && s.isPlaying) {
+                    playedNs += deltaNs.coerceAtLeast(0L)
+                    if (playedNs / 1_000_000L > maxPlayingMs) {
+                        val t = IllegalStateException("Ad playback exceeded maxPlayingMs=$maxPlayingMs (paused time excluded)")
+                        if (!done.isCompleted) done.completeExceptionally(t)
+                        break
+                    }
+                }
+                delay(tickIntervalMs)
+            }
+        }
+
         val exitJob = scope.launch {
             var seenInAd = false
             player.state.collect { s ->
@@ -433,6 +460,7 @@ class DefaultAdEngine(
         try {
             done.await()
         } finally {
+            watchdogJob.cancel()
             exitJob.cancel()
             player.removeListener(listener)
         }

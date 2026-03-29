@@ -67,7 +67,7 @@ class ExoPlayer2Adapter(
     override fun setSeekingEnabled(enabled: Boolean) {
     }
 
-    override fun playAd(mediaUri: String, adSkipOffsetMs: Long?) {
+    override fun playAd(mediaUri: String, adSkipOffsetMs: Long?, simidInteractiveCreativeUrl: String?) {
         if (!_state.value.isInAd) {
             contentItem = player.currentMediaItem
             contentPositionMs = player.currentPosition

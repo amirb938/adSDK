@@ -130,6 +130,7 @@ class VASTVMAPPullParserScenariosTest {
                     <Creative>
                       <Linear skipoffset="10%">
                         <Duration>00:00:20</Duration>
+                        <InteractiveCreativeFile apiFramework="SIMID"><![CDATA[https://cdn/simid/index.html]]></InteractiveCreativeFile>
                         <TrackingEvents>
                           <Tracking event="start"><![CDATA[https://t/start]]></Tracking>
                           <Tracking event="firstQuartile"><![CDATA[https://t/q1]]></Tracking>
@@ -160,6 +161,8 @@ class VASTVMAPPullParserScenariosTest {
         assertTrue(ad.trackingEvents.containsKey("progress@00:00:05"))
         assertTrue(ad.skipOffset is SkipOffset.Percent)
         assertEquals(10, (ad.skipOffset as SkipOffset.Percent).value)
+        assertEquals("https://cdn/simid/index.html", ad.interactiveCreativeUrl)
+        assertEquals("SIMID", ad.interactiveApiFramework)
     }
 
     @Test

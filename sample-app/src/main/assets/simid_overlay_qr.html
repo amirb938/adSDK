@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>SIMID QR Overlay</title>
+    <style>
+      :root {
+        --bg: rgba(0, 0, 0, 0.45);
+        --panel: rgba(255, 255, 255, 0.92);
+        --text: #0f172a;
+        --accent: #22c55e;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial,
+          sans-serif;
+      }
+      body {
+        background: transparent;
+      }
+      .root {
+        position: fixed;
+        inset: 0;
+        background: transparent;
+        display: flex;
+        align-items: center; /* vertical center */
+        justify-content: flex-end; /* right side */
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      .scrim {
+        position: absolute;
+        inset: 0;
+        background: var(--bg);
+      }
+      .panel {
+        position: relative;
+        width: min(300px, 72vw);
+        background: var(--panel);
+        border-radius: 16px;
+        padding: 14px;
+        box-shadow: 0 12px 42px rgba(0, 0, 0, 0.35);
+        box-sizing: border-box;
+        max-height: calc(100vh - 32px);
+        overflow: auto;
+      }
+      .title {
+        margin: 0 0 10px 0;
+        font-size: 14px;
+        color: var(--text);
+        font-weight: 700;
+        text-align: center;
+      }
+      .qr {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border-radius: 12px;
+        overflow: hidden;
+        background: white;
+        border: 1px solid rgba(15, 23, 42, 0.12);
+        display: grid;
+        place-items: center;
+      }
+      .btn {
+        margin-top: 12px;
+        width: 100%;
+        padding: 12px 14px;
+        border: 0;
+        border-radius: 12px;
+        background: var(--accent);
+        color: #052e16;
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+        outline: none;
+      }
+      .btn:focus {
+        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.35);
+      }
+      .btnRow {
+        margin-top: 12px;
+        display: flex;
+        gap: 10px;
+      }
+      .btn.secondary {
+        background: rgba(15, 23, 42, 0.08);
+        color: var(--text);
+        font-weight: 800;
+      }
+      .phoneWrap {
+        display: none;
+        margin-top: 10px;
+      }
+      .phoneWrap.show {
+        display: block;
+      }
+      input {
+        width: 100%;
+        font-size: 16px;
+        padding: 12px 12px;
+        border: 1px solid rgba(15, 23, 42, 0.15);
+        border-radius: 12px;
+        outline: none;
+        box-sizing: border-box;
+        background: #fff;
+        color: var(--text);
+      }
+      input:focus {
+        border-color: rgba(34, 197, 94, 0.9);
+        box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
+      }
+      .toast {
+        margin-top: 10px;
+        display: none;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(34, 197, 94, 0.12);
+        color: #065f46;
+        font-size: 13px;
+        font-weight: 700;
+        text-align: center;
+      }
+      .toast.show {
+        display: block;
+      }
+      .hint {
+        margin-top: 10px;
+        font-size: 12px;
+        color: rgba(15, 23, 42, 0.7);
+        text-align: center;
+        line-height: 1.35;
+      }
+    </style>
+    <script>
+      function post(type) {
+        try {
+          if (window.AndroidSimidBridge && window.AndroidSimidBridge.postMessage) {
+            window.AndroidSimidBridge.postMessage(JSON.stringify({ type: type }));
+          }
+        } catch (e) {}
+      }
+
+      function showToast(text) {
+        var t = document.getElementById("toast");
+        if (!t) return;
+        t.textContent = text;
+        t.classList.add("show");
+        setTimeout(function () {
+          t.classList.remove("show");
+        }, 2000);
+      }
+
+      window.addEventListener("load", function () {
+        var btn = document.getElementById("sendBtn");
+        if (btn) {
+          setTimeout(function () {
+            btn.focus();
+          }, 0);
+        }
+      });
+
+      function togglePhone() {
+        var wrap = document.getElementById("phoneWrap");
+        if (!wrap) return;
+        wrap.classList.toggle("show");
+        if (wrap.classList.contains("show")) {
+          // User is about to input data: pause the ad.
+          post("SIMID_requestPause");
+          var input = document.getElementById("phoneInput");
+          if (input) setTimeout(function () { input.focus(); }, 0);
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="root">
+      <div class="scrim" onclick="post('SIMID_requestPlay');"></div>
+      <div class="panel" role="dialog" aria-label="SIMID Mock QR Overlay">
+        <div class="title">اسکن کنید یا پیام بفرستید</div>
+        <div class="qr" aria-label="QR Code">
+          <!-- Static QR-like SVG (offline, no external libs) -->
+          <svg viewBox="0 0 120 120" width="100%" height="100%">
+            <rect x="0" y="0" width="120" height="120" fill="#fff" />
+            <rect x="8" y="8" width="32" height="32" fill="#000" />
+            <rect x="14" y="14" width="20" height="20" fill="#fff" />
+            <rect x="18" y="18" width="12" height="12" fill="#000" />
+            <rect x="80" y="8" width="32" height="32" fill="#000" />
+            <rect x="86" y="14" width="20" height="20" fill="#fff" />
+            <rect x="90" y="18" width="12" height="12" fill="#000" />
+            <rect x="8" y="80" width="32" height="32" fill="#000" />
+            <rect x="14" y="86" width="20" height="20" fill="#fff" />
+            <rect x="18" y="90" width="12" height="12" fill="#000" />
+            <!-- Noise blocks -->
+            <rect x="52" y="10" width="6" height="6" fill="#000" />
+            <rect x="60" y="10" width="6" height="6" fill="#000" />
+            <rect x="52" y="18" width="6" height="6" fill="#000" />
+            <rect x="60" y="26" width="6" height="6" fill="#000" />
+            <rect x="50" y="44" width="8" height="8" fill="#000" />
+            <rect x="62" y="44" width="8" height="8" fill="#000" />
+            <rect x="74" y="44" width="8" height="8" fill="#000" />
+            <rect x="52" y="56" width="6" height="6" fill="#000" />
+            <rect x="60" y="56" width="6" height="6" fill="#000" />
+            <rect x="68" y="56" width="6" height="6" fill="#000" />
+            <rect x="76" y="56" width="6" height="6" fill="#000" />
+            <rect x="44" y="68" width="8" height="8" fill="#000" />
+            <rect x="56" y="68" width="8" height="8" fill="#000" />
+            <rect x="68" y="68" width="8" height="8" fill="#000" />
+            <rect x="80" y="68" width="8" height="8" fill="#000" />
+            <rect x="52" y="80" width="6" height="6" fill="#000" />
+            <rect x="60" y="88" width="6" height="6" fill="#000" />
+            <rect x="68" y="80" width="6" height="6" fill="#000" />
+            <rect x="76" y="88" width="6" height="6" fill="#000" />
+          </svg>
+        </div>
+        <div class="btnRow">
+          <button
+            id="sendBtn"
+            class="btn"
+            type="button"
+            autofocus
+            onclick="showToast('پیامک با موفقیت ارسال شد'); post('SIMID_requestPlay');"
+          >
+            ارسال پیام
+          </button>
+          <button
+            id="phoneBtn"
+            class="btn secondary"
+            type="button"
+            onclick="togglePhone();"
+          >
+            وارد کردن شماره
+          </button>
+        </div>
+        <div id="phoneWrap" class="phoneWrap" aria-label="Phone Input Container">
+          <input
+            id="phoneInput"
+            type="tel"
+            inputmode="tel"
+            autocomplete="tel"
+            placeholder="شماره را وارد کنید"
+            aria-label="Phone number"
+          />
+        </div>
+        <div id="toast" class="toast" aria-live="polite"></div>
+        <div class="hint">با دکمه OK روی تلویزیون، روی «ارسال پیام» کلیک کنید.</div>
+      </div>
+    </div>
+  </body>
+</html>
+

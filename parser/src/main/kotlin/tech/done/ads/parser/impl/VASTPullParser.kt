@@ -118,6 +118,8 @@ class VASTPullParser(
 
         var durationMs: Long? = null
         var skipOffset: SkipOffset? = null
+        var interactiveCreativeUrl: String? = null
+        var interactiveApiFramework: String? = null
         val mediaFiles = mutableListOf<MediaFile>()
         val tracking = mutableMapOf<String, MutableList<String>>()
 
@@ -132,6 +134,8 @@ class VASTPullParser(
                     readInline(p, tracking, mediaFiles).also {
                         durationMs = it.durationMs
                         skipOffset = it.skipOffset
+                        interactiveCreativeUrl = it.interactiveCreativeUrl
+                        interactiveApiFramework = it.interactiveApiFramework
                     }
                 }
                 "Wrapper" -> {
@@ -157,6 +161,8 @@ class VASTPullParser(
             isWrapper = isWrapper,
             skipOffset = skipOffset,
             durationMs = durationMs,
+            interactiveCreativeUrl = interactiveCreativeUrl,
+            interactiveApiFramework = interactiveApiFramework,
             mediaFiles = mediaFiles,
             trackingEvents = trackingWithWrapper,
         )
@@ -165,6 +171,8 @@ class VASTPullParser(
     private data class InlineResult(
         val durationMs: Long?,
         val skipOffset: SkipOffset?,
+        val interactiveCreativeUrl: String?,
+        val interactiveApiFramework: String?,
     )
 
     private fun readInline(
@@ -174,6 +182,8 @@ class VASTPullParser(
     ): InlineResult {
         var durationMs: Long? = null
         var skipOffset: SkipOffset? = null
+        var interactiveCreativeUrl: String? = null
+        var interactiveApiFramework: String? = null
 
         while (true) {
             val event = p.next()
@@ -187,17 +197,26 @@ class VASTPullParser(
                     val res = readCreatives(p, tracking, mediaFiles)
                     if (durationMs == null) durationMs = res.durationMs
                     if (skipOffset == null) skipOffset = res.skipOffset
+                    if (interactiveCreativeUrl == null) interactiveCreativeUrl = res.interactiveCreativeUrl
+                    if (interactiveApiFramework == null) interactiveApiFramework = res.interactiveApiFramework
                 }
                 else -> p.skipTag()
             }
         }
 
-        return InlineResult(durationMs = durationMs, skipOffset = skipOffset)
+        return InlineResult(
+            durationMs = durationMs,
+            skipOffset = skipOffset,
+            interactiveCreativeUrl = interactiveCreativeUrl,
+            interactiveApiFramework = interactiveApiFramework,
+        )
     }
 
     private data class CreativeResult(
         val durationMs: Long?,
         val skipOffset: SkipOffset?,
+        val interactiveCreativeUrl: String?,
+        val interactiveApiFramework: String?,
     )
 
     private fun readCreatives(
@@ -207,6 +226,8 @@ class VASTPullParser(
     ): CreativeResult {
         var durationMs: Long? = null
         var skipOffset: SkipOffset? = null
+        var interactiveCreativeUrl: String? = null
+        var interactiveApiFramework: String? = null
 
         while (true) {
             val event = p.next()
@@ -218,12 +239,19 @@ class VASTPullParser(
                     val res = readCreative(p, tracking, mediaFiles)
                     if (durationMs == null) durationMs = res.durationMs
                     if (skipOffset == null) skipOffset = res.skipOffset
+                    if (interactiveCreativeUrl == null) interactiveCreativeUrl = res.interactiveCreativeUrl
+                    if (interactiveApiFramework == null) interactiveApiFramework = res.interactiveApiFramework
                 }
                 else -> p.skipTag()
             }
         }
 
-        return CreativeResult(durationMs = durationMs, skipOffset = skipOffset)
+        return CreativeResult(
+            durationMs = durationMs,
+            skipOffset = skipOffset,
+            interactiveCreativeUrl = interactiveCreativeUrl,
+            interactiveApiFramework = interactiveApiFramework,
+        )
     }
 
     private fun readCreative(
@@ -233,6 +261,8 @@ class VASTPullParser(
     ): CreativeResult {
         var durationMs: Long? = null
         var skipOffset: SkipOffset? = null
+        var interactiveCreativeUrl: String? = null
+        var interactiveApiFramework: String? = null
 
         while (true) {
             val event = p.next()
@@ -244,17 +274,26 @@ class VASTPullParser(
                     val res = readLinear(p, tracking, mediaFiles)
                     durationMs = res.durationMs
                     skipOffset = res.skipOffset
+                    interactiveCreativeUrl = res.interactiveCreativeUrl
+                    interactiveApiFramework = res.interactiveApiFramework
                 }
                 else -> p.skipTag()
             }
         }
 
-        return CreativeResult(durationMs = durationMs, skipOffset = skipOffset)
+        return CreativeResult(
+            durationMs = durationMs,
+            skipOffset = skipOffset,
+            interactiveCreativeUrl = interactiveCreativeUrl,
+            interactiveApiFramework = interactiveApiFramework,
+        )
     }
 
     private data class LinearResult(
         val durationMs: Long?,
         val skipOffset: SkipOffset?,
+        val interactiveCreativeUrl: String?,
+        val interactiveApiFramework: String?,
     )
 
     private fun readLinear(
@@ -265,6 +304,8 @@ class VASTPullParser(
         val skipOffsetRaw = p.attr("skipoffset")?.trim()
         val skipOffset = parseSkipOffset(skipOffsetRaw)
         var durationMs: Long? = null
+        var interactiveCreativeUrl: String? = null
+        var interactiveApiFramework: String? = null
 
         while (true) {
             val event = p.next()
@@ -275,11 +316,24 @@ class VASTPullParser(
                 "Duration" -> durationMs = parseVASTTimeToMs(p.readText())
                 "TrackingEvents" -> readTrackingEvents(p, tracking)
                 "MediaFiles" -> readMediaFiles(p, mediaFiles)
+                "InteractiveCreativeFile" -> {
+                    val apiFramework = p.attr("apiFramework")?.trim()
+                    val url = p.readText().trim()
+                    if (apiFramework == SIMID_API_FRAMEWORK && url.isNotBlank()) {
+                        interactiveApiFramework = apiFramework
+                        interactiveCreativeUrl = url
+                    }
+                }
                 else -> p.skipTag()
             }
         }
 
-        return LinearResult(durationMs = durationMs, skipOffset = skipOffset)
+        return LinearResult(
+            durationMs = durationMs,
+            skipOffset = skipOffset,
+            interactiveCreativeUrl = interactiveCreativeUrl,
+            interactiveApiFramework = interactiveApiFramework,
+        )
     }
 
     private fun readTrackingEvents(p: XmlPullParser, tracking: MutableMap<String, MutableList<String>>) {
@@ -371,5 +425,6 @@ class VASTPullParser(
 
     private companion object {
         private const val WRAPPER_URL_KEY = "__wrapper_url"
+        private const val SIMID_API_FRAMEWORK = "SIMID"
     }
 }

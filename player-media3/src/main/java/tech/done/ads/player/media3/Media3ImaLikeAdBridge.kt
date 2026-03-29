@@ -78,7 +78,7 @@ class Media3ImaLikeAdBridge(
         override fun setSeekingEnabled(enabled: Boolean) {
         }
 
-        override fun playAd(mediaUri: String, adSkipOffsetMs: Long?) {
+        override fun playAd(mediaUri: String, adSkipOffsetMs: Long?, simidInteractiveCreativeUrl: String?) {
             startAd(mediaUri, adSkipOffsetMs)
         }
 

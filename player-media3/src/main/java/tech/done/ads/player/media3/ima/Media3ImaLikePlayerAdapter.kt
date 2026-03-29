@@ -78,8 +78,8 @@ internal class Media3ImaLikePlayerAdapter(
         }
 
         override fun setSeekingEnabled(enabled: Boolean) {}
-        override fun playAd(mediaUri: String, adSkipOffsetMs: Long?) =
-            startAd(mediaUri, adSkipOffsetMs)
+        override fun playAd(mediaUri: String, adSkipOffsetMs: Long?, simidInteractiveCreativeUrl: String?) =
+            startAd(mediaUri, adSkipOffsetMs, simidInteractiveCreativeUrl)
 
         override fun resumeContent() = endAdAndResumeContent()
         override fun pause() {
@@ -130,6 +130,12 @@ internal class Media3ImaLikePlayerAdapter(
             uiConfig?.let { adOverlayView.applyUiConfig(it) }
         }
         ensureAdViewsAdded()
+        adDisplayContainer.setSimidEventListener(
+            object : AdDisplayContainerView.SimidEventListener {
+                override fun onRequestPause() = playerAdapter.pause()
+                override fun onRequestPlay() = playerAdapter.play()
+            },
+        )
         startPolling()
     }
 
@@ -137,6 +143,8 @@ internal class Media3ImaLikePlayerAdapter(
         runCatching { pollJob?.cancel() }
         runCatching { contentPlayer.removeListener(contentListener) }
         runCatching { adPlayer.removeListener(adListener) }
+        runCatching { adDisplayContainer.setSimidEventListener(null) }
+        runCatching { adDisplayContainer.hideSimidCreative() }
         runCatching { (adPlayerView.parent as? ViewGroup)?.removeView(adPlayerView) }
         runCatching { (adOverlayView.parent as? ViewGroup)?.removeView(adOverlayView) }
         runCatching { adPlayer.release() }
@@ -154,7 +162,7 @@ internal class Media3ImaLikePlayerAdapter(
         }
     }
 
-    private fun startAd(mediaUri: String, adSkipOffsetMs: Long?) {
+    private fun startAd(mediaUri: String, adSkipOffsetMs: Long?, simidInteractiveCreativeUrl: String?) {
         ensureAdViewsAdded()
 
         if (!_state.value.isInAd) {
@@ -184,10 +192,20 @@ internal class Media3ImaLikePlayerAdapter(
         adPlayer.setMediaItem(MediaItem.fromUri(mediaUri))
         adPlayer.prepare()
         adPlayer.playWhenReady = true
+
+        if (!simidInteractiveCreativeUrl.isNullOrBlank()) {
+            adDisplayContainer.loadSimidCreative(simidInteractiveCreativeUrl)
+            // Keep built-in skip / ad chrome above the SIMID layer when enabled.
+            if (showBuiltInAdOverlay) {
+                adOverlayView.bringToFront()
+            }
+        }
     }
 
     private fun endAdAndResumeContent() {
         if (!_state.value.isInAd) return
+
+        adDisplayContainer.hideSimidCreative()
 
         adPlayer.playWhenReady = false
         adPlayer.stop()

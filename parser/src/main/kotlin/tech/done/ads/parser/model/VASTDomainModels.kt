@@ -6,6 +6,8 @@ data class VASTAd(
     val isWrapper: Boolean = false,
     val skipOffset: SkipOffset? = null,
     val durationMs: Long? = null,
+    val interactiveCreativeUrl: String? = null,
+    val interactiveApiFramework: String? = null,
     val mediaFiles: List<MediaFile> = emptyList(),
     val trackingEvents: Map<String, List<String>> = emptyMap(),
 )

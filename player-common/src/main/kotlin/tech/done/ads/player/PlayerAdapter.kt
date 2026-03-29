@@ -10,7 +10,11 @@ interface PlayerAdapter {
 
     fun setSeekingEnabled(enabled: Boolean)
 
-    fun playAd(mediaUri: String, adSkipOffsetMs: Long? = null)
+    fun playAd(
+        mediaUri: String,
+        adSkipOffsetMs: Long? = null,
+        simidInteractiveCreativeUrl: String? = null,
+    )
 
     fun resumeContent()
 
