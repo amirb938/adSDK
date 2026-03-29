@@ -75,10 +75,10 @@ ui-compose
 ## Key Runtime Components
 
 - **`Media3AdsLoader`**  
-  Facade: wires `DefaultAdEngine`, parsers, scheduler, tracking, and `Media3ImaLikePlayerAdapter`. Exposes `StateFlow` `isAdPlaying`, `StateFlow` `playerState`, optional `AdsEventListener` multicasting, ad playback callbacks, `setShowBuiltInAdOverlay`, and `skipCurrentAd()`.
+  Facade: wires `DefaultAdEngine`, parsers, scheduler, tracking, and `Media3ImaLikePlayerAdapter`. Prefer **`Media3AdsLoader.builder(context)`** (fluent `network`, `tracking`, `scope`, `debugLogging`) over the deprecated primary constructor. Exposes `StateFlow` `isAdPlaying`, `StateFlow` `playerState`, optional `AdsEventListener` multicasting, ad playback callbacks, `setShowBuiltInAdOverlay`, and `skipCurrentAd()`.
 
 - **`DefaultAdEngine`**  
-  Single orchestration point for timeline lifecycle, VAST resolution, skip handling, and coordination with `PlayerAdapter` and `TrackingEngine`.
+  Single orchestration point for timeline lifecycle, VAST resolution, skip handling, and coordination with `PlayerAdapter` and `TrackingEngine`. Propagates SDK callbacks through **`dispatchAdsEvent`** with **`AdsEventKind`** and **`AdsEventPayload`** so analytics and UI stay aligned with a single event taxonomy.
 
 - **`PlayerAdapter`**  
   Abstract boundary so the same engine can drive Media3 (dual player) or ExoPlayer2 (single player swapping `MediaItem`).
@@ -87,15 +87,15 @@ ui-compose
 
 - **`NetworkLayer.dispatcher`** is used for I/O (ad tag fetch, tracking).  
 - Engine and Media3 rebuild paths expect **main-thread** configuration for `Media3AdsLoader` / `AdDisplayContainerView`.  
-- **`AdSdkLogConfig.isDebugLoggingEnabled`** gates verbose logging across modules; `Media3AdsLoader` can enable it via constructor parameter.
+- **`AdSdkLogConfig.isDebugLoggingEnabled`** gates verbose logging across modules; `Media3AdsLoader` can enable it via **`Builder.debugLogging(...)`** (or the deprecated constructor).
 
 ## Extension Points
 
 - Implement **`NetworkLayer`** with OkHttp, Ktor, or other stacks.  
 - Swap **`VMAPParser` / `VASTParser` / `AdScheduler`** when constructing `DefaultAdEngine` for tests or alternate scheduling rules.  
-- Use **`AdsEventListener`** for analytics or custom UI driven by SDK events.  
+- Use **`AdsEventListener`** for analytics or custom UI driven by SDK events (**`Media3AdsLoader.addAdSdkEventListener`** takes this type; default no-op methods mean you override only the callbacks you need). Types **`AdsSchedulingListener`** and **`AdsCreativePlaybackListener`** document the two concern areas; the engine dispatches via **`AdsEventKind`**.  
 - **`ui-compose`** supplies **`AdOverlay`** / **`AdUiState`** / **`AdUiStyle`** / **`overrideContent`** for apps that render ad chrome in Compose. Use **`Media3AdsLoader.setShowBuiltInAdOverlay(false)`** and **`playerState`** to drive it; **`skipCurrentAd()`** triggers **`resumeContent`** on the adapter.
 
 ## Related Reading
 
-Module-level detail is in the [documentation index](../README.md#documentation).
+Module-level detail is in the [documentation index](../README.md#documentation). For ready-made prompts to draw SDK flow diagrams (Mermaid or image AI), see [diagram-generation-prompts.md](diagram-generation-prompts.md).

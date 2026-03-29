@@ -8,7 +8,7 @@
 
 | Symbol | Responsibility |
 |--------|----------------|
-| **`Media3AdsLoader`** | Entry point: **`setPlayer`**, **`setAdDisplayContainer`**, optional **`setAdMarkersContainerView`**, **`setVideoSurfaceView`**, **`setUiConfig`**, **`setContentUi`**. **`requestAds(adTagUri)`** fetches XML, detects VMAP vs VAST, loads into engine. **`requestAdsFromVMAPXml`** for pre-fetched VMAP. **`start`**, **`release`**. Exposes **`StateFlow`** **`isAdPlaying`** and **`playerState`** (**`PlayerState`**: content/ad positions, **`isInAd`**, skip offset). **`setShowBuiltInAdOverlay(false)`** omits **`AdOverlayView`** so hosts can render Compose (or other) chrome from **`playerState`**. **`skipCurrentAd()`** calls **`PlayerAdapter.resumeContent()`** (posts to main if needed). **`AdsEventListener`**, **`AdPlaybackListener`**, optional **`Context`** constructor with **`SampleNetworkLayer`**. |
+| **`Media3AdsLoader`** | Entry point: **`Media3AdsLoader.builder(context)`** with **`network`**, **`tracking`**, **`scope`**, **`debugLogging`**; the previous **`Context`**-first constructor is **deprecated** but still builds a loader with **`SampleNetworkLayer`**. Then: **`setPlayer`**, **`setAdDisplayContainer`**, optional **`setAdMarkersContainerView`**, **`setVideoSurfaceView`**, **`setUiConfig`**, **`setContentUi`**. **`requestAds(adTagUri)`** fetches XML, detects VMAP vs VAST, loads into engine. **`requestAdsFromVMAPXml`** for pre-fetched VMAP. **`start`**, **`release`**. Exposes **`StateFlow`** **`isAdPlaying`** and **`playerState`** (**`PlayerState`**: content/ad positions, **`isInAd`**, **`adSkipOffsetMs`**, **`isAdSkippable`**). **`setShowBuiltInAdOverlay(false)`** omits **`AdOverlayView`** so hosts can render Compose (or other) chrome from **`playerState`**. **`skipCurrentAd()`** calls **`PlayerAdapter.resumeContent()`** (posts to main if needed). **`AdsEventListener`**, **`AdPlaybackListener`**. |
 | **`AdDisplayContainerView`** | **`FrameLayout`** host for ad **`PlayerView`** and overlay; clips disabled for overlay stacking. |
 | **`Media3ImaLikePlayerAdapter`** (internal) | Dual-player strategy: pauses content, shows ad surface, **`playAd`** / **`resumeContent`**, propagates **`PlayerState`**. Respects **`showBuiltInAdOverlay`** (skip/countdown **`AdOverlayView`** optional). |
 | **`AdOverlayView`** (internal) | Traditional View hierarchy: countdown, skip-in, skip button; styled via **`AdSdkUiConfig`** and string resources. |
@@ -24,11 +24,15 @@
 ## Integration / Usage
 
 ```kotlin
-val adsLoader = Media3AdsLoader(network = network, scope = scope).apply {
-    setPlayer(contentExoPlayer)
-    setAdDisplayContainer(adDisplayContainerView)
-    setAdMarkersContainerView(playerView) // optional midroll markers
-}
+val adsLoader = Media3AdsLoader.builder(context)
+    .network(network)
+    .scope(scope)
+    .build()
+    .apply {
+        setPlayer(contentExoPlayer)
+        setAdDisplayContainer(adDisplayContainerView)
+        setAdMarkersContainerView(playerView) // optional midroll markers
+    }
 adsLoader.requestAds("https://example.com/ad-tag")
 adsLoader.start()
 // onDestroy:

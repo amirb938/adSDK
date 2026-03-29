@@ -10,8 +10,8 @@ The Gradle root project is named **DMA**. Published coordinates use the group **
 - **Timeline scheduling** (preroll, midroll, postroll) from VMAP
 - **Pluggable HTTP** through **`NetworkLayer`**
 - **VAST tracking** with a default **retrying** implementation
-- **Media3 path (recommended):** **`Media3AdsLoader`**, **`AdDisplayContainerView`**, dual-player ad/content handling, **`StateFlow`** values **`isAdPlaying`** and **`playerState`** (**`PlayerState`** from **`player-common`**)
-- **Skip / custom chrome:** **`skipCurrentAd()`** (main thread), **`setShowBuiltInAdOverlay(false)`** to hide the built-in **`AdOverlayView`** and drive UI from **`playerState`** (e.g. **`ui-compose`** **`AdOverlay`**)
+- **Media3 path (recommended):** **`Media3AdsLoader`** (fluent **`Media3AdsLoader.builder(context)`**; the legacy constructor is deprecated), **`AdDisplayContainerView`**, dual-player ad/content handling, **`StateFlow`** values **`isAdPlaying`** and **`playerState`** (**`PlayerState`** from **`player-common`**, including **`isAdSkippable`** for UI)
+- **Skip / custom chrome:** **`skipCurrentAd()`** (main thread), **`setShowBuiltInAdOverlay(false)`** to hide the built-in **`AdOverlayView`** and drive UI from **`playerState`** (e.g. **`ui-compose`** **`AdOverlay`**); custom overlays should respect **`isAdSkippable`** so non-skippable creatives do not show a skip affordance
 - **Ad tag convenience:** **`requestAds(adTagUri)`** with automatic VMAP vs VAST detection; raw VAST wrapped as a synthetic preroll-only VMAP
 - **Optional Compose UI module** (**`ui-compose`**) — **`AdOverlay`**, **`AdUiStyle`**, **`overrideContent`**; works with **`Media3AdsLoader.playerState`** when the built-in overlay is turned off (see **[ui-compose](docs/ui-compose.md)** and **[sample-app](docs/sample-app.md)**)
 - **ExoPlayer2 adapter** for legacy single-player integrations (**`ExoPlayer2Adapter`**)
@@ -25,7 +25,7 @@ The Gradle root project is named **DMA**. Published coordinates use the group **
 | **scheduler** | VMAP → **`AdTimeline`** (**`VMAPScheduler`**) |
 | **tracking** | **`TrackingEngine`**, **`RetryingTrackingEngine`** |
 | **network** | **`NetworkLayer`**, **`NetworkResponse`**, **`AdSdkLogConfig`** |
-| **player-common** | **`PlayerAdapter`**, **`PlayerState`**, **`AdsEventListener`**, multicaster |
+| **player-common** | **`PlayerAdapter`**, **`PlayerState`**, **`AdsEventListener`** (**`AdsSchedulingListener`** + **`AdsCreativePlaybackListener`**), **`AdsEventKind`** / **`dispatchAdsEvent`**, multicaster |
 | **player-media3** | **`Media3AdsLoader`**, **`AdDisplayContainerView`**, Media3 integration |
 | **player-exoplayer2** | **`ExoPlayer2Adapter`** for ExoPlayer2 |
 | **ui-compose** | **`AdOverlay`**, **`AdUiState`**, **`AdUiStyle`** (Jetpack Compose) |
@@ -46,6 +46,7 @@ In-depth technical documentation lives under **`docs/`**:
 - **[player-exoplayer2](docs/player-exoplayer2.md)** — ExoPlayer2 adapter
 - **[ui-compose](docs/ui-compose.md)** — Compose overlay primitives
 - **[sample-app](docs/sample-app.md)** — sample application module
+- **[Diagram prompts (Mermaid / image AI)](docs/diagram-generation-prompts.md)** — پرامپت‌های آماده برای رسم دیاگرام فرآیند SDK
 
 ## Limitations compared with Google IMA SDK
 
@@ -173,10 +174,11 @@ class PlayerActivity : AppCompatActivity() {
 
         val network: NetworkLayer = /* your OkHttp/Ktor implementation */
 
-        adsLoader = Media3AdsLoader(
-            network = network,
-            scope = scope,
-        ).apply {
+        adsLoader = Media3AdsLoader.builder(this)
+            .network(network)
+            .scope(scope)
+            .build()
+            .apply {
             setPlayer(contentPlayer)
             setAdDisplayContainer(adDisplayContainer)
             setAdMarkersContainerView(contentPlayerView)
@@ -214,7 +216,9 @@ fun PlayerScreen() {
     }
 
     val network: NetworkLayer = remember { /* ... */ }
-    val adsLoader = remember { Media3AdsLoader(network = network, scope = MainScope()) }
+    val adsLoader = remember {
+        Media3AdsLoader.builder(context).network(network).scope(MainScope()).build()
+    }
 
     Box(Modifier.fillMaxSize()) {
         AndroidView(
@@ -261,7 +265,7 @@ fun PlayerScreen() {
 To use **`ui-compose`** **`AdOverlay`** while keeping **`Media3AdsLoader`**:
 
 1. **`adsLoader.setShowBuiltInAdOverlay(false)`** — avoids duplicate skip/countdown UI (**`AdOverlayView`** is not added).
-2. Collect **`adsLoader.playerState`** and map **`PlayerState`** → **`AdUiState`** (see **`sample-app`** **`SampleComposeAdOverlay.kt`**).
+2. Collect **`adsLoader.playerState`** and map **`PlayerState`** → **`AdUiState`** (see **`sample-app`** **`SampleComposeAdOverlay.kt`**), using **`isAdSkippable`** so skip UI appears only for skippable linear ads.
 3. On skip, call **`adsLoader.skipCurrentAd()`** (safe on any thread; posts to main internally).
 
 **`DefaultAdEngine`** waits for the linear ad to finish **or** for the adapter to leave the ad (**`isInAd == false`**, e.g. after **`skipCurrentAd`**), so the timeline advances correctly after a user skip.
@@ -300,5 +304,5 @@ engine.start()
 ## Notes
 
 - **VMAP vs VAST:** **`requestAds`** inspects the first XML root tag; unsupported roots fail fast with a clear error.
-- **Debug logging:** **`Media3AdsLoader(..., debugLogging = true)`** or **`AdSdkLogConfig.isDebugLoggingEnabled`** controls verbose tracing where implemented.
+- **Debug logging:** **`Media3AdsLoader.builder(context).debugLogging(true).build()`** or **`AdSdkLogConfig.isDebugLoggingEnabled`** controls verbose tracing where implemented.
 - **Threading:** Configure **`Media3AdsLoader`** (player + ad container) on the **main** thread. **`skipCurrentAd()`** may be called from a background thread; it forwards to the main looper.

@@ -16,8 +16,8 @@ The demo uses **Compose for the ad overlay** instead of the default View overlay
 
 | Symbol | Responsibility |
 |--------|----------------|
-| **`MainActivity`** | Builds content **`ExoPlayer`**, **`Media3AdsLoader`**, **`setShowBuiltInAdOverlay(false)`**, **`AndroidView`** for **`PlayerView`** and **`AdDisplayContainerView`**, collects **`playerState`**, **`SampleCustomAdOverlay`** on top, **`requestAdsFromVMAPXml`** + **`start`**. Releases player and loader on **`onStop`**; recreates on **`onStart`** after teardown (demo lifecycle). |
-| **`SampleComposeAdOverlay.kt`** | **`playerStateToAdUiState`**, **`SampleCustomAdOverlay`** — maps **`PlayerState`**, themed **`AdUiStyle`**, custom top bar via **`overrideContent`**. |
+| **`MainActivity`** | Builds content **`ExoPlayer`**, **`Media3AdsLoader.builder(context).scope(...).debugLogging(...).build()`**, **`setShowBuiltInAdOverlay(false)`**, **`AndroidView`** for **`PlayerView`** and **`AdDisplayContainerView`**, collects **`playerState`**, **`SampleCustomAdOverlay`** on top, **`requestAdsFromVMAPXml`** + **`start`**. Releases player and loader on **`onStop`**; recreates on **`onStart`** after teardown (demo lifecycle). |
+| **`SampleComposeAdOverlay.kt`** | **`playerStateToAdUiState`**, **`SampleCustomAdOverlay`** — maps **`PlayerState`** (including **`isAdSkippable`**: no skip affordance when the creative is not skippable), themed **`AdUiStyle`**, custom top bar via **`overrideContent`**; skip **`FocusRequester`** only when skip UI is shown. |
 | **`SampleApplication`** | Application class (Timber tree setup if configured). |
 | **`SampleNetworkLayer`** | App-level **`NetworkLayer`** for real device fetches when not using the loader’s **`SampleNetworkLayer`**. |
 | **`SampleAdsEventLogger`** | Example **`AdsEventListener`** logging SDK callbacks. |

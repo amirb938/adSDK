@@ -8,7 +8,7 @@
 
 | Symbol | Responsibility |
 |--------|----------------|
-| **`ExoPlayer2Adapter`** | Implements **`PlayerAdapter`**: saves content item/position before **`playAd`**, restores on **`resumeContent`**, polls/pushes **`PlayerState`**, forwards **`Player.Listener`** events to **`PlayerListener`**. |
+| **`ExoPlayer2Adapter`** | Implements **`PlayerAdapter`**: saves content item/position before **`playAd`**, restores on **`resumeContent`**, polls/pushes **`PlayerState`** (including **`isAdSkippable`** when a skip offset is active), forwards **`Player.Listener`** events to **`PlayerListener`**. |
 
 ## Dependencies
 

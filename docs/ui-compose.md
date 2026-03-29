@@ -7,7 +7,7 @@ The **ui-compose** module provides **Jetpack Compose** building blocks for ad ch
 For **Media3**, the usual pairing is:
 
 - **`Media3AdsLoader.setShowBuiltInAdOverlay(false)`** — suppresses the default **`AdOverlayView`** inside **`AdDisplayContainerView`**.
-- **`Media3AdsLoader.playerState`** — **`StateFlow<PlayerState>`**; map fields such as **`isInAd`**, **`adPositionMs`**, **`adDurationMs`**, **`adSkipOffsetMs`** into **`AdUiState`**.
+- **`Media3AdsLoader.playerState`** — **`StateFlow<PlayerState>`**; map fields such as **`isInAd`**, **`adPositionMs`**, **`adDurationMs`**, **`adSkipOffsetMs`**, **`isAdSkippable`** into **`AdUiState`** (non-skippable ads should not show skip / “skip in Ns” chrome).
 - **`Media3AdsLoader.skipCurrentAd()`** — ends the current linear ad and resumes content (implements **`PlayerAdapter.resumeContent()`** on the main thread).
 
 See **`sample-app`** **`SampleComposeAdOverlay.kt`** for a full example (including TV-oriented focus on the skip control).
@@ -49,10 +49,11 @@ Pass **`overrideContent`** to replace inner content. The outer **`Box`** still a
 
 ### Mapping `PlayerState` → `AdUiState`
 
-**`PlayerState`** (from **`player-common`**) exposes **`isInAd`**, **`adPositionMs`**, **`adDurationMs`**, **`adSkipOffsetMs`**. Typical rules:
+**`PlayerState`** (from **`player-common`**) exposes **`isInAd`**, **`adPositionMs`**, **`adDurationMs`**, **`adSkipOffsetMs`**, **`isAdSkippable`**. Typical rules:
 
 - **`visible = isInAd`**
-- **`canSkip = adSkipOffsetMs != null && adPositionMs >= adSkipOffsetMs`**
+- If **`!isAdSkippable`**: show countdown / remaining time only; set **`canSkip = false`**, **`skipInSeconds = null`**, and omit skip controls.
+- If **`isAdSkippable`**: **`canSkip = adSkipOffsetMs != null && adPositionMs >= adSkipOffsetMs`**
 - **`skipInSeconds`** / **`remainingSeconds`**: derive from offsets and duration with **`ceil((ms) / 1000.0).toInt()`** (match the built-in **`AdOverlayView`** behavior if you want parity).
 
 ## Related documentation

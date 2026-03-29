@@ -22,15 +22,17 @@ The **tracking** module defines how the SDK fires **VAST tracking URLs** (impres
 **`Media3AdsLoader`** defaults to **`RetryingTrackingEngine(network)`**. Override for tests or custom analytics:
 
 ```kotlin
-Media3AdsLoader(
-    network = myNetwork,
-    tracking = object : TrackingEngine {
-        override val dispatcher = Dispatchers.IO
-        override suspend fun track(event: TrackingEvent, urls: List<String>) {
-            // custom beacon handling
-        }
-    },
-)
+Media3AdsLoader.builder(context)
+    .network(myNetwork)
+    .tracking(
+        object : TrackingEngine {
+            override val dispatcher = Dispatchers.IO
+            override suspend fun track(event: TrackingEvent, urls: List<String>) {
+                // custom beacon handling
+            }
+        },
+    )
+    .build()
 ```
 
 **`DefaultAdEngine`** accepts **`TrackingEngine`** in its constructor for direct engine integrations.
