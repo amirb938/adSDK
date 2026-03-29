@@ -21,7 +21,10 @@ import tech.done.ads.parser.VASTParser
 import tech.done.ads.parser.VMAPParser
 import tech.done.ads.parser.model.SkipOffset
 import tech.done.ads.parser.model.VASTAd
+import tech.done.ads.player.AdsEventKind
 import tech.done.ads.player.AdsEventListener
+import tech.done.ads.player.AdsEventPayload
+import tech.done.ads.player.dispatchAdsEvent
 import tech.done.ads.player.PlayerAdapter
 import tech.done.ads.player.PlayerListener
 import tech.done.ads.scheduler.AdScheduler
@@ -94,7 +97,12 @@ class DefaultAdEngine(
             logTag,
             "loadVMAP parsed breaks=${parsed.adBreaks.size} version=${parsed.version}"
         )
-        adsEventListener?.onVMAPParsed(parsed.version, parsed.adBreaks.size)
+        dispatchAdsEvent(
+            adsEventListener,
+            AdsEventKind.VMAP_PARSED,
+            breakId = null,
+            AdsEventPayload(version = parsed.version, adBreakCount = parsed.adBreaks.size),
+        )
         val built = scheduler.buildTimeline(parsed)
         AdSdkDebugLog.d(
             logTag,
@@ -231,9 +239,14 @@ class DefaultAdEngine(
 
     private suspend fun playSingleBreakUrl(b: ScheduledBreak, vastTagUrl: String) {
         val bid = b.breakId
-        adsEventListener?.onAdBreakLoading(bid, b.triggerTimeMs)
+        dispatchAdsEvent(
+            adsEventListener,
+            AdsEventKind.AD_BREAK_LOADING,
+            bid,
+            AdsEventPayload(triggerTimeMs = b.triggerTimeMs),
+        )
         AdSdkDebugLog.d(logTag, "Entering ad break breakId=$bid url=$vastTagUrl")
-        adsEventListener?.onContentPauseRequested(bid)
+        dispatchAdsEvent(adsEventListener, AdsEventKind.CONTENT_PAUSE_REQUESTED, bid)
         _state.value = _state.value.copy(inAd = true, currentBreak = b, lastError = null)
         player.setSeekingEnabled(false)
 
@@ -241,7 +254,7 @@ class DefaultAdEngine(
         if (result.isFailure) {
             val err = result.exceptionOrNull()
             AdSdkDebugLog.e(logTag, "Ad break failed breakId=$bid", err)
-            adsEventListener?.onAdError(bid, err)
+            dispatchAdsEvent(adsEventListener, AdsEventKind.AD_ERROR, bid, AdsEventPayload(error = err))
             tracking.track(TrackingEvent.Error, emptyList())
             _state.value = _state.value.copy(lastError = err)
         } else {
@@ -251,18 +264,23 @@ class DefaultAdEngine(
         player.setSeekingEnabled(true)
         player.resumeContent()
         _state.value = _state.value.copy(inAd = false, currentBreak = null)
-        adsEventListener?.onContentResumeRequested(bid)
+        dispatchAdsEvent(adsEventListener, AdsEventKind.CONTENT_RESUME_REQUESTED, bid)
         AdSdkDebugLog.d(logTag, "Exited ad break breakId=$bid, resumed content")
     }
 
     private suspend fun playSingleBreakInline(b: ScheduledBreak, vastInlineXml: String) {
         val bid = b.breakId
-        adsEventListener?.onAdBreakLoading(bid, b.triggerTimeMs)
+        dispatchAdsEvent(
+            adsEventListener,
+            AdsEventKind.AD_BREAK_LOADING,
+            bid,
+            AdsEventPayload(triggerTimeMs = b.triggerTimeMs),
+        )
         AdSdkDebugLog.d(
             logTag,
             "Entering ad break breakId=$bid inlineVASTBytes=${vastInlineXml.length}"
         )
-        adsEventListener?.onContentPauseRequested(bid)
+        dispatchAdsEvent(adsEventListener, AdsEventKind.CONTENT_PAUSE_REQUESTED, bid)
         _state.value = _state.value.copy(inAd = true, currentBreak = b, lastError = null)
         player.setSeekingEnabled(false)
 
@@ -270,7 +288,7 @@ class DefaultAdEngine(
         if (result.isFailure) {
             val err = result.exceptionOrNull()
             AdSdkDebugLog.e(logTag, "Ad break (inline) failed breakId=$bid", err)
-            adsEventListener?.onAdError(bid, err)
+            dispatchAdsEvent(adsEventListener, AdsEventKind.AD_ERROR, bid, AdsEventPayload(error = err))
             tracking.track(TrackingEvent.Error, emptyList())
             _state.value = _state.value.copy(lastError = err)
         } else {
@@ -280,7 +298,7 @@ class DefaultAdEngine(
         player.setSeekingEnabled(true)
         player.resumeContent()
         _state.value = _state.value.copy(inAd = false, currentBreak = null)
-        adsEventListener?.onContentResumeRequested(bid)
+        dispatchAdsEvent(adsEventListener, AdsEventKind.CONTENT_RESUME_REQUESTED, bid)
         AdSdkDebugLog.d(logTag, "Exited ad break (inline) breakId=$bid, resumed content")
     }
 
@@ -305,7 +323,12 @@ class DefaultAdEngine(
         )
 
         val mediaUri = first.mediaFiles.first().uri
-        adsEventListener?.onVASTLoaded(breakId, first.durationMs, mediaUri)
+        dispatchAdsEvent(
+            adsEventListener,
+            AdsEventKind.VAST_LOADED,
+            breakId,
+            AdsEventPayload(durationMs = first.durationMs, mediaUri = mediaUri),
+        )
 
         val tracker = VASTTrackingSession(
             ad = first,
@@ -318,7 +341,7 @@ class DefaultAdEngine(
         )
 
         tracker.fireImpression()
-        adsEventListener?.onAdImpression(breakId)
+        dispatchAdsEvent(adsEventListener, AdsEventKind.AD_IMPRESSION, breakId)
         tracker.fireStart()
 
         val skipOffsetMs = resolveSkipOffsetToMs(first.skipOffset, dur)
@@ -327,7 +350,7 @@ class DefaultAdEngine(
             "playAd mediaUri=$mediaUri bufferTimeoutMs=$bufferTimeoutMs skipOffsetMs=$skipOffsetMs",
         )
 
-        adsEventListener?.onAdStarted(breakId)
+        dispatchAdsEvent(adsEventListener, AdsEventKind.AD_STARTED, breakId)
         player.playAd(mediaUri, skipOffsetMs)
 
         val playStateJob = scope.launch {
@@ -347,17 +370,22 @@ class DefaultAdEngine(
                 awaitAdEnd(
                     onProgress = { posMs, durationMs ->
                         tracker.onProgress(posMs, durationMs)
-                        adsEventListener?.onAdProgress(breakId, posMs, durationMs)
+                        dispatchAdsEvent(
+                            adsEventListener,
+                            AdsEventKind.AD_PROGRESS,
+                            breakId,
+                            AdsEventPayload(positionMs = posMs, durationMs = durationMs),
+                        )
                     },
                     onEnded = {
                         scope.launch {
                             tracker.fireComplete()
-                            adsEventListener?.onAdCompleted(breakId)
+                            dispatchAdsEvent(adsEventListener, AdsEventKind.AD_COMPLETED, breakId)
                         }
                     },
                     onError = { t ->
                         scope.launch { tracker.fireError() }
-                        adsEventListener?.onAdError(breakId, t)
+                        dispatchAdsEvent(adsEventListener, AdsEventKind.AD_ERROR, breakId, AdsEventPayload(error = t))
                     },
                 )
             }
@@ -446,10 +474,10 @@ class DefaultAdEngine(
             lastIsPlaying = isPlaying
             if (prev == null) return
             if (prev && !isPlaying) {
-                adEvents?.onAdPaused(breakId)
+                dispatchAdsEvent(adEvents, AdsEventKind.AD_PAUSED, breakId)
                 launchFireOnce("pause", TrackingEvent.Pause, "pause")
             } else if (!prev && isPlaying) {
-                adEvents?.onAdResumed(breakId)
+                dispatchAdsEvent(adEvents, AdsEventKind.AD_RESUMED, breakId)
                 launchFireOnce("resume", TrackingEvent.Resume, "resume")
             }
         }
@@ -458,15 +486,15 @@ class DefaultAdEngine(
             val dur = durationMs ?: ad.durationMs
             if (dur != null && dur > 0) {
                 if (positionMs >= dur / 4) {
-                    notifyListenerOnce("fq") { adEvents?.onAdFirstQuartile(breakId) }
+                    notifyListenerOnce("fq") { dispatchAdsEvent(adEvents, AdsEventKind.AD_FIRST_QUARTILE, breakId) }
                     launchFireOnce("firstquartile", TrackingEvent.FirstQuartile, "firstquartile")
                 }
                 if (positionMs >= dur / 2) {
-                    notifyListenerOnce("mp") { adEvents?.onAdMidpoint(breakId) }
+                    notifyListenerOnce("mp") { dispatchAdsEvent(adEvents, AdsEventKind.AD_MIDPOINT, breakId) }
                     launchFireOnce("midpoint", TrackingEvent.Midpoint, "midpoint")
                 }
                 if (positionMs >= (dur * 3) / 4) {
-                    notifyListenerOnce("tq") { adEvents?.onAdThirdQuartile(breakId) }
+                    notifyListenerOnce("tq") { dispatchAdsEvent(adEvents, AdsEventKind.AD_THIRD_QUARTILE, breakId) }
                     launchFireOnce("thirdquartile", TrackingEvent.ThirdQuartile, "thirdquartile")
                 }
             }

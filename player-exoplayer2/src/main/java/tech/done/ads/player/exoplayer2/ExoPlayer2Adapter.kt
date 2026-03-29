@@ -78,6 +78,7 @@ class ExoPlayer2Adapter(
             adPositionMs = 0L,
             adDurationMs = null,
             adSkipOffsetMs = adSkipOffsetMs,
+            isAdSkippable = adSkipOffsetMs != null,
         )
 
         player.setMediaItem(MediaItem.fromUri(mediaUri))
@@ -87,7 +88,13 @@ class ExoPlayer2Adapter(
 
     override fun resumeContent() {
         val item = contentItem ?: return
-        _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null, adSkipOffsetMs = null)
+        _state.value = _state.value.copy(
+            isInAd = false,
+            adPositionMs = 0L,
+            adDurationMs = null,
+            adSkipOffsetMs = null,
+            isAdSkippable = false,
+        )
 
         player.setMediaItem(item)
         player.prepare()

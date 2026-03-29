@@ -88,6 +88,7 @@ class Media3PlayerAdapter(
             adPositionMs = 0L,
             adDurationMs = null,
             adSkipOffsetMs = adSkipOffsetMs,
+            isAdSkippable = adSkipOffsetMs != null,
         )
 
         player.setMediaItem(MediaItem.fromUri(mediaUri))
@@ -98,7 +99,13 @@ class Media3PlayerAdapter(
     override fun resumeContent() {
         val item = contentItem ?: return
         AdSdkDebugLog.d(logTag, "resumeContent seekToMs=$contentPositionMs item=${item.mediaId}")
-        _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null, adSkipOffsetMs = null)
+        _state.value = _state.value.copy(
+            isInAd = false,
+            adPositionMs = 0L,
+            adDurationMs = null,
+            adSkipOffsetMs = null,
+            isAdSkippable = false,
+        )
 
         player.setMediaItem(item)
         player.prepare()

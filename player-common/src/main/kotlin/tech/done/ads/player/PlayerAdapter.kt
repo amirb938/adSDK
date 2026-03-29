@@ -26,5 +26,6 @@ data class PlayerState(
     val adPositionMs: Long = 0L,
     val adDurationMs: Long? = null,
     val adSkipOffsetMs: Long? = null,
+    val isAdSkippable: Boolean = false,
 )
 

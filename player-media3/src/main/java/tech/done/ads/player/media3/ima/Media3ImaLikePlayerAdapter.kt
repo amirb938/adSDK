@@ -178,6 +178,7 @@ internal class Media3ImaLikePlayerAdapter(
             adDurationMs = null,
             isPlaying = false,
             adSkipOffsetMs = adSkipOffsetMs,
+            isAdSkippable = adSkipOffsetMs != null,
         )
 
         adPlayer.setMediaItem(MediaItem.fromUri(mediaUri))
@@ -212,7 +213,8 @@ internal class Media3ImaLikePlayerAdapter(
             isInAd = false,
             adPositionMs = 0L,
             adDurationMs = null,
-            adSkipOffsetMs = null
+            adSkipOffsetMs = null,
+            isAdSkippable = false,
         )
     }
 

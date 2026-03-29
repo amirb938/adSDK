@@ -220,6 +220,7 @@ class Media3ImaLikeAdBridge(
             adDurationMs = null,
             isPlaying = false,
             adSkipOffsetMs = adSkipOffsetMs,
+            isAdSkippable = adSkipOffsetMs != null,
         )
         AdSdkDebugLog.d(logTag, "startAd uri=$mediaUri savedPosMs=$savedContentPositionMs")
 
@@ -249,7 +250,13 @@ class Media3ImaLikeAdBridge(
             contentPlayer.playWhenReady = savedContentPlayWhenReady
         }
 
-        _state.value = _state.value.copy(isInAd = false, adPositionMs = 0L, adDurationMs = null, adSkipOffsetMs = null)
+        _state.value = _state.value.copy(
+            isInAd = false,
+            adPositionMs = 0L,
+            adDurationMs = null,
+            adSkipOffsetMs = null,
+            isAdSkippable = false,
+        )
     }
 
     private fun suppressContentControllers(inAd: Boolean) {

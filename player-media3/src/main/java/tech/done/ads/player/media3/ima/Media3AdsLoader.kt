@@ -16,44 +16,72 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tech.done.ads.AdSdkLogConfig
+import tech.done.ads.core.DefaultAdEngine
+import tech.done.ads.network.NetworkLayer
+import tech.done.ads.parser.impl.VASTPullParser
+import tech.done.ads.parser.impl.VMAPPullParser
+import tech.done.ads.parser.model.VMAPResponse
 import tech.done.ads.player.AdsEventListener
 import tech.done.ads.player.AdsEventMulticaster
 import tech.done.ads.player.PlayerListener
 import tech.done.ads.player.PlayerState
-import tech.done.ads.core.DefaultAdEngine
-import tech.done.ads.network.NetworkLayer
+import tech.done.ads.player.media3.ima.internal.AdPlaybackSignal
 import tech.done.ads.player.media3.network.SampleNetworkLayer
-import tech.done.ads.parser.impl.VASTPullParser
-import tech.done.ads.parser.impl.VMAPPullParser
-import tech.done.ads.parser.model.VMAPResponse
 import tech.done.ads.scheduler.VMAPScheduler
 import tech.done.ads.tracking.RetryingTrackingEngine
 import tech.done.ads.tracking.TrackingEngine
-import tech.done.ads.player.media3.ima.internal.AdPlaybackSignal
 import java.util.concurrent.CopyOnWriteArraySet
 
-class Media3AdsLoader(
+class Media3AdsLoader private constructor(
     private val network: NetworkLayer,
-    private val tracking: TrackingEngine = RetryingTrackingEngine(network),
-    private val scope: CoroutineScope = MainScope(),
-    debugLogging: Boolean = false,
+    private val tracking: TrackingEngine,
+    private val scope: CoroutineScope,
+    debugLogging: Boolean,
 ) {
     init {
         AdSdkLogConfig.isDebugLoggingEnabled = debugLogging
     }
 
+    class Builder(private val context: Context) {
+        private var network: NetworkLayer? = null
+        private var tracking: TrackingEngine? = null
+        private var scope: CoroutineScope = MainScope()
+        private var debugLogging: Boolean = false
+
+        fun network(network: NetworkLayer) = apply { this.network = network }
+
+        fun tracking(tracking: TrackingEngine) = apply { this.tracking = tracking }
+
+        fun scope(scope: CoroutineScope) = apply { this.scope = scope }
+
+        fun debugLogging(enabled: Boolean) = apply { this.debugLogging = enabled }
+
+        fun build(): Media3AdsLoader {
+            val net = network ?: SampleNetworkLayer(context)
+            val tr = tracking ?: RetryingTrackingEngine(net)
+            return Media3AdsLoader(net, tr, scope, debugLogging)
+        }
+    }
+
+    companion object {
+        @JvmStatic
+        fun builder(context: Context): Builder = Builder(context)
+    }
+
+    @Deprecated(
+        message = "Use Media3AdsLoader.builder(context).… .build() for clearer configuration.",
+        replaceWith = ReplaceWith(
+            "Media3AdsLoader.builder(context).scope(scope).debugLogging(debugLogging).build()",
+            "tech.done.ads.player.media3.ima.Media3AdsLoader",
+        ),
+    )
     constructor(
         context: Context,
         network: NetworkLayer = SampleNetworkLayer(context),
         tracking: TrackingEngine = RetryingTrackingEngine(network),
         scope: CoroutineScope = MainScope(),
         debugLogging: Boolean = false,
-    ) : this(
-        network = network,
-        tracking = tracking,
-        scope = scope,
-        debugLogging = debugLogging,
-    )
+    ) : this(network, tracking, scope, debugLogging)
 
     interface ContentUi {
         fun onAdStarted()
@@ -182,7 +210,8 @@ class Media3AdsLoader(
     }
 
     fun requestAdsFromVMAPXml(vmapXml: String) {
-        val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
+        val e = engine
+            ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
         scope.launch(Dispatchers.Main.immediate) {
             applyAdMarkersFromVMAPXmlOrClear(vmapXml)
             e.loadVMAP(vmapXml)
@@ -193,7 +222,8 @@ class Media3AdsLoader(
     fun requestAdsFromVmapXml(vmapXml: String) = requestAdsFromVMAPXml(vmapXml)
 
     fun requestAds(adTagUri: String, timeoutMs: Long = 10_000L) {
-        val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
+        val e = engine
+            ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
         scope.launch(network.dispatcher) {
             val resp = network.get(adTagUri, timeoutMs = timeoutMs)
             if (!resp.isSuccessful) error("Failed to load adTagUri. code=${resp.code} url=$adTagUri")
@@ -212,7 +242,8 @@ class Media3AdsLoader(
     }
 
     fun start() {
-        val e = engine ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
+        val e = engine
+            ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
         e.start()
     }
 
@@ -292,10 +323,12 @@ class Media3AdsLoader(
                     _isAdPlaying.value = true
                     adPlaybackListeners.forEach { it.onAdStarted() }
                 }
+
                 is AdPlaybackSignal.Event.Ended -> {
                     _isAdPlaying.value = false
                     adPlaybackListeners.forEach { it.onAdEnded() }
                 }
+
                 is AdPlaybackSignal.Event.Error -> {
                     adPlaybackListeners.forEach { it.onAdError(e.throwable) }
                 }
@@ -381,10 +414,12 @@ class Media3AdsLoader(
         }
 
         runCatching {
-            cls.getMethod("setAdMarkerColor", Int::class.javaPrimitiveType).invoke(timeBar, 0xFFFFC107.toInt())
+            cls.getMethod("setAdMarkerColor", Int::class.javaPrimitiveType)
+                .invoke(timeBar, 0xFFFFC107.toInt())
         }
         runCatching {
-            cls.getMethod("setPlayedAdMarkerColor", Int::class.javaPrimitiveType).invoke(timeBar, 0xFFFFC107.toInt())
+            cls.getMethod("setPlayedAdMarkerColor", Int::class.javaPrimitiveType)
+                .invoke(timeBar, 0xFFFFC107.toInt())
         }
     }
 

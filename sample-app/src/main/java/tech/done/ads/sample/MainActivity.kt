@@ -44,8 +44,10 @@ class MainActivity : ComponentActivity() {
         }
         this.exo = exo
 
-        val adsLoader =
-            Media3AdsLoader(context = this, scope = scope, debugLogging = adSdkDebugLogging)
+        val adsLoader = Media3AdsLoader.builder(this)
+            .scope(scope)
+            .debugLogging(adSdkDebugLogging)
+            .build()
         adsLoader.addAdSdkEventListener(adSdkEventLogger)
         adsLoader.setShowBuiltInAdOverlay(false)
         this.adsLoader = adsLoader
