@@ -8,7 +8,7 @@ The **player-common** module defines the **player-agnostic boundary** between th
 
 | Symbol | Responsibility |
 |--------|----------------|
-| **PlayerAdapter** | Exposes `StateFlow<PlayerState>`, listener registration, **playAd(mediaUri, adSkipOffsetMs?)**, **resumeContent()**, **pause()** and **play()**, **setSeekingEnabled**. |
+| **PlayerAdapter** | Exposes `StateFlow<PlayerState>`, listener registration, **playAd(mediaUri, adSkipOffsetMs?, simidInteractiveCreativeUrl?)**, **resumeContent()**, **pause()** and **play()**, **setSeekingEnabled**. |
 | **PlayerState** | Fields: **isPlaying**, **isInAd**, content and ad positions and durations, **adSkipOffsetMs**, **isAdSkippable** (whether the current linear ad may show skip UI). **Media3AdsLoader** exposes **`StateFlow<PlayerState>`** as **`playerState`** for Compose or other UI that maps into **ui-compose** **`AdUiState`**. |
 | **PlayerListener** | Content and ad lifecycle hooks: ended, app foreground and background, ad progress, errors (default empty implementations). |
 | **AdsSchedulingListener** | Timeline and break-level callbacks: VMAP parsed, ad break loading, content pause/resume, VAST loaded, errors. |

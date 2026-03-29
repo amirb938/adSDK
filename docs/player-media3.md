@@ -9,7 +9,7 @@
 | Symbol | Responsibility |
 |--------|----------------|
 | **`Media3AdsLoader`** | Entry point: **`Media3AdsLoader.builder(context)`** with **`network`**, **`tracking`**, **`scope`**, **`debugLogging`**; the previous **`Context`**-first constructor is **deprecated** but still builds a loader with **`SampleNetworkLayer`**. Then: **`setPlayer`**, **`setAdDisplayContainer`**, optional **`setAdMarkersContainerView`**, **`setVideoSurfaceView`**, **`setUiConfig`**, **`setContentUi`**. **`requestAds(adTagUri)`** fetches XML, detects VMAP vs VAST, loads into engine. **`requestAdsFromVMAPXml`** for pre-fetched VMAP. **`start`**, **`release`**. Exposes **`StateFlow`** **`isAdPlaying`** and **`playerState`** (**`PlayerState`**: content/ad positions, **`isInAd`**, **`adSkipOffsetMs`**, **`isAdSkippable`**). **`setShowBuiltInAdOverlay(false)`** omits **`AdOverlayView`** so hosts can render Compose (or other) chrome from **`playerState`**. **`skipCurrentAd()`** calls **`PlayerAdapter.resumeContent()`** (posts to main if needed). **`AdsEventListener`**, **`AdPlaybackListener`**. |
-| **`AdDisplayContainerView`** | **`FrameLayout`** host for ad **`PlayerView`** and overlay; clips disabled for overlay stacking. |
+| **`AdDisplayContainerView`** | **`FrameLayout`** host for ad **`PlayerView`** and overlays; clips disabled for stacking. Includes an optional **SIMID overlay `WebView`** (`loadSimidCreative(url)` / `hideSimidCreative()`) and a minimal JS bridge (`AndroidSimidBridge.postMessage`) to request **pause/play** from interactive creatives. |
 | **`Media3ImaLikePlayerAdapter`** (internal) | Dual-player strategy: pauses content, shows ad surface, **`playAd`** / **`resumeContent`**, propagates **`PlayerState`**. Respects **`showBuiltInAdOverlay`** (skip/countdown **`AdOverlayView`** optional). |
 | **`AdOverlayView`** (internal) | Traditional View hierarchy: countdown, skip-in, skip button; styled via **`AdSdkUiConfig`** and string resources. |
 | **`AdSdkUiConfig`** | Optional accent color, typeface, button corner radius for the overlay. |
@@ -50,3 +50,16 @@ adsLoader.setShowBuiltInAdOverlay(false)
 ```
 
 See **[ui-compose](ui-compose.md)** and **[sample-app](sample-app.md)**.
+
+### SIMID (basic overlay)
+
+If a VAST `<Linear>` creative contains:
+
+- `<InteractiveCreativeFile apiFramework="SIMID">https://…</InteractiveCreativeFile>`
+
+the engine will pass the interactive URL into the player adapter, and the Media3 adapter will load it in a transparent `WebView` on top of the ad player. The web layer can request playback changes by calling:
+
+- `window.AndroidSimidBridge.postMessage(JSON.stringify({"type":"SIMID_requestPause"}))`
+- `window.AndroidSimidBridge.postMessage(JSON.stringify({"type":"SIMID_requestPlay"}))`
+
+The adapter maps these events to `PlayerAdapter.pause()` / `PlayerAdapter.play()`. When the ad ends or is skipped, the WebView is cleared and hidden.

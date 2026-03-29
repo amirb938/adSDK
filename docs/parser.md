@@ -9,7 +9,7 @@ The **parser** module implements **streaming (pull) parsing** of **VMAP** and **
 | Symbol | Responsibility |
 |--------|----------------|
 | **`VMAPParser` / `VMAPPullParser`** | Parse VMAP XML strings into **`VMAPResponse`** (version, ad breaks, positions, offsets, inline or URI VAST sources). |
-| **`VASTParser` / `VASTPullParser`** | Parse VAST XML into a list of **`VASTAd`** (creatives, media files, tracking URLs, skip offsets, wrappers). Supports async wrapper resolution via **`VASTWrapperFetcher`**. |
+| **`VASTParser` / `VASTPullParser`** | Parse VAST XML into a list of **`VASTAd`** (creatives, media files, tracking URLs, skip offsets, wrappers). Also extracts **`<InteractiveCreativeFile apiFramework="SIMID">…</InteractiveCreativeFile>`** under `<Linear>` into `VASTAd.interactiveCreativeUrl` / `VASTAd.interactiveApiFramework`. Supports async wrapper resolution via **`VASTWrapperFetcher`**. |
 | **`PullParserFactory`** | Internal **`XmlPullParser`** setup (kXML2 / XmlPull). |
 | **`VMAPResponse`, `VASTAd`, `AdBreak`, `SkipOffset`, etc.** | Domain models in **`tech.done.ads.parser.model`**. |
 | **`XmlParseError`** | Structured parse failure reporting. |

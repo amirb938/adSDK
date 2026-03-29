@@ -13,6 +13,7 @@ The Gradle root project is named **DMA**. Published coordinates use the group **
 - **Media3 path (recommended):** **`Media3AdsLoader`** (fluent **`Media3AdsLoader.builder(context)`**; the legacy constructor is deprecated), **`AdDisplayContainerView`**, dual-player ad/content handling, **`StateFlow`** values **`isAdPlaying`** and **`playerState`** (**`PlayerState`** from **`player-common`**, including **`isAdSkippable`** for UI)
 - **Skip / custom chrome:** **`skipCurrentAd()`** (main thread), **`setShowBuiltInAdOverlay(false)`** to hide the built-in **`AdOverlayView`** and drive UI from **`playerState`** (e.g. **`ui-compose`** **`AdOverlay`**); custom overlays should respect **`isAdSkippable`** so non-skippable creatives do not show a skip affordance
 - **Ad tag convenience:** **`requestAds(adTagUri)`** with automatic VMAP vs VAST detection; raw VAST wrapped as a synthetic preroll-only VMAP
+- **SIMID-like interactive overlay (basic):** parses **`<InteractiveCreativeFile apiFramework="SIMID">`** from VAST Linear creatives, renders it as a **transparent `WebView`** on top of the ad player, and supports a minimal JS → Kotlin bridge (`AndroidSimidBridge.postMessage`) for **pause/play** requests
 - **Optional Compose UI module** (**`ui-compose`**) — **`AdOverlay`**, **`AdUiStyle`**, **`overrideContent`**; works with **`Media3AdsLoader.playerState`** when the built-in overlay is turned off (see **[ui-compose](docs/ui-compose.md)** and **[sample-app](docs/sample-app.md)**)
 - **ExoPlayer2 adapter** for legacy single-player integrations (**`ExoPlayer2Adapter`**)
 
@@ -54,7 +55,9 @@ The following capabilities exist in Google’s **Interactive Media Ads (IMA) SDK
 
 - **Non-linear ads and overlays** — Only **linear video** creatives are targeted. Non-linear VAST (overlays, graphics timed to content, etc.) is not implemented.
 
-- **Interactive creatives (VPAID / SIMID)** — There is **no** VPAID or SIMID runtime: interactive or script-driven creatives are out of scope; playback assumes progressive/downloadable **MP4** (or other formats your **ExoPlayer** stack can decode), not executable ad units.
+- **Interactive creatives (VPAID)** — VPAID is not implemented.
+
+- **SIMID** — A lightweight, **SIMID-like** flow is supported for **Media3** only: the parser extracts **`InteractiveCreativeFile`** with `apiFramework="SIMID"` and the Media3 integration can render the URL in an overlay `WebView` and receive basic pause/play messages. This is **not** a complete SIMID runtime (no full handshake/state machine/creative validation).
 
 - **Companion ads** — **CompanionBanner** (and related) elements are **not** parsed for layout, and the SDK does **not** render companion slots beside or around the player.
 
