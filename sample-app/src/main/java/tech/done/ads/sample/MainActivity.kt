@@ -8,12 +8,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
+import tech.done.ads.player.PlayerState
 import tech.done.ads.player.media3.ima.AdDisplayContainerView
 import tech.done.ads.player.media3.ima.Media3AdsLoader
 import timber.log.Timber
@@ -41,11 +47,17 @@ class MainActivity : ComponentActivity() {
         val adsLoader =
             Media3AdsLoader(context = this, scope = scope, debugLogging = adSdkDebugLogging)
         adsLoader.addAdSdkEventListener(adSdkEventLogger)
+        adsLoader.setShowBuiltInAdOverlay(false)
         this.adsLoader = adsLoader
 
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
+                    var playerState by remember { mutableStateOf(PlayerState()) }
+                    LaunchedEffect(adsLoader) {
+                        adsLoader.playerState.collectLatest { playerState = it }
+                    }
+
                     Box(modifier = Modifier.fillMaxSize()) {
                         AndroidView(
                             modifier = Modifier.fillMaxSize(),
@@ -65,6 +77,12 @@ class MainActivity : ComponentActivity() {
                                     adsLoader.setAdDisplayContainer(it)
                                 }
                             },
+                        )
+
+                        SampleCustomAdOverlay(
+                            playerState = playerState,
+                            onSkip = { adsLoader.skipCurrentAd() },
+                            modifier = Modifier.fillMaxSize(),
                         )
                     }
 

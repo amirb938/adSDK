@@ -8,9 +8,9 @@
 
 | Symbol | Responsibility |
 |--------|----------------|
-| **`Media3AdsLoader`** | Entry point: **`setPlayer`**, **`setAdDisplayContainer`**, optional **`setAdMarkersContainerView`**, **`setVideoSurfaceView`**, **`setUiConfig`**, **`setContentUi`**. **`requestAds(adTagUri)`** fetches XML, detects VMAP vs VAST, loads into engine. **`requestAdsFromVMAPXml`** for pre-fetched VMAP. **`start`**, **`release`**. Exposes **`isAdPlaying`**, **`AdsEventListener`** registration, **`AdPlaybackListener`**, optional **`Context`** constructor with **`SampleNetworkLayer`**. |
+| **`Media3AdsLoader`** | Entry point: **`setPlayer`**, **`setAdDisplayContainer`**, optional **`setAdMarkersContainerView`**, **`setVideoSurfaceView`**, **`setUiConfig`**, **`setContentUi`**. **`requestAds(adTagUri)`** fetches XML, detects VMAP vs VAST, loads into engine. **`requestAdsFromVMAPXml`** for pre-fetched VMAP. **`start`**, **`release`**. Exposes **`StateFlow`** **`isAdPlaying`** and **`playerState`** (**`PlayerState`**: content/ad positions, **`isInAd`**, skip offset). **`setShowBuiltInAdOverlay(false)`** omits **`AdOverlayView`** so hosts can render Compose (or other) chrome from **`playerState`**. **`skipCurrentAd()`** calls **`PlayerAdapter.resumeContent()`** (posts to main if needed). **`AdsEventListener`**, **`AdPlaybackListener`**, optional **`Context`** constructor with **`SampleNetworkLayer`**. |
 | **`AdDisplayContainerView`** | **`FrameLayout`** host for ad **`PlayerView`** and overlay; clips disabled for overlay stacking. |
-| **`Media3ImaLikePlayerAdapter`** (internal) | Dual-player strategy: pauses content, shows ad surface, **`playAd`** / **`resumeContent`**, propagates **`PlayerState`**. |
+| **`Media3ImaLikePlayerAdapter`** (internal) | Dual-player strategy: pauses content, shows ad surface, **`playAd`** / **`resumeContent`**, propagates **`PlayerState`**. Respects **`showBuiltInAdOverlay`** (skip/countdown **`AdOverlayView`** optional). |
 | **`AdOverlayView`** (internal) | Traditional View hierarchy: countdown, skip-in, skip button; styled via **`AdSdkUiConfig`** and string resources. |
 | **`AdSdkUiConfig`** | Optional accent color, typeface, button corner radius for the overlay. |
 | **`AdPlaybackSignal`** (internal) | Derives start/end/error ad playback events from player state for **`isAdPlaying`** and listeners. |
@@ -36,3 +36,13 @@ adsLoader.release()
 ```
 
 Requirements: configure **`setPlayer`** and **`setAdDisplayContainer`** on the **main thread** before **`requestAds`**. Use **`getVideoSurfaceSizePx`** when you need dimensions for VAST resolution rules that depend on player size.
+
+### Compose overlay instead of built-in UI
+
+```kotlin
+adsLoader.setShowBuiltInAdOverlay(false)
+// Collect adsLoader.playerState → map to AdUiState → AdOverlay(...)
+// adsLoader.skipCurrentAd()
+```
+
+See **[ui-compose](ui-compose.md)** and **[sample-app](sample-app.md)**.

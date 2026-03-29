@@ -389,9 +389,23 @@ class DefaultAdEngine(
         }
 
         player.addListener(listener)
+        val exitJob = scope.launch {
+            var seenInAd = false
+            player.state.collect { s ->
+                if (s.isInAd) seenInAd = true
+                if (seenInAd && !s.isInAd && !done.isCompleted) {
+                    AdSdkDebugLog.d(
+                        logTag,
+                        "awaitAdEnd: ad exited without onAdEnded (e.g. user skip); completing wait",
+                    )
+                    done.complete(Unit)
+                }
+            }
+        }
         try {
             done.await()
         } finally {
+            exitJob.cancel()
             player.removeListener(listener)
         }
     }

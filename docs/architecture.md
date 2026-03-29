@@ -29,7 +29,7 @@ The codebase is organized into Gradle subprojects with a clear dependency direct
    `DefaultAdEngine.loadVMAP(xml)` parses with `VMAPPullParser`, then `VMAPScheduler.buildTimeline` produces `AdTimeline` (preroll, midroll, postroll `ScheduledBreak` entries).
 
 3. **Break execution**  
-   For each break, the engine resolves VAST (inline or via URI + `NetworkLayer`), selects creatives, and calls `PlayerAdapter.playAd` / `resumeContent`. **Media3** path: `Media3ImaLikePlayerAdapter` swaps between content `ExoPlayer` and a dedicated ad `ExoPlayer`, hosts `PlayerView` + `AdOverlayView` under `AdDisplayContainerView`.
+   For each break, the engine resolves VAST (inline or via URI + `NetworkLayer`), selects creatives, and calls `PlayerAdapter.playAd` / `resumeContent`. **Media3** path: `Media3ImaLikePlayerAdapter` swaps between content `ExoPlayer` and a dedicated ad `ExoPlayer`, hosts `PlayerView` and (unless disabled) `AdOverlayView` under `AdDisplayContainerView`. The engine’s wait for the end of a linear ad completes on `PlayerListener.onAdEnded` **or** when `PlayerState.isInAd` becomes `false` (user skip / `resumeContent` without the ad player reaching `STATE_ENDED`).
 
 4. **Position & midrolls**  
    The engine observes `PlayerState.contentPositionMs` (and a periodic tick) to fire midrolls when `triggerTimeMs` is reached. Postrolls trigger on content end (`PlayerListener.onContentEnded`).
@@ -75,7 +75,7 @@ ui-compose
 ## Key Runtime Components
 
 - **`Media3AdsLoader`**  
-  Facade: wires `DefaultAdEngine`, parsers, scheduler, tracking, and `Media3ImaLikePlayerAdapter`. Exposes `StateFlow` `isAdPlaying`, optional `AdsEventListener` multicasting, and ad playback callbacks.
+  Facade: wires `DefaultAdEngine`, parsers, scheduler, tracking, and `Media3ImaLikePlayerAdapter`. Exposes `StateFlow` `isAdPlaying`, `StateFlow` `playerState`, optional `AdsEventListener` multicasting, ad playback callbacks, `setShowBuiltInAdOverlay`, and `skipCurrentAd()`.
 
 - **`DefaultAdEngine`**  
   Single orchestration point for timeline lifecycle, VAST resolution, skip handling, and coordination with `PlayerAdapter` and `TrackingEngine`.
@@ -94,7 +94,7 @@ ui-compose
 - Implement **`NetworkLayer`** with OkHttp, Ktor, or other stacks.  
 - Swap **`VMAPParser` / `VASTParser` / `AdScheduler`** when constructing `DefaultAdEngine` for tests or alternate scheduling rules.  
 - Use **`AdsEventListener`** for analytics or custom UI driven by SDK events.  
-- **`ui-compose`** supplies **`AdOverlay`** / **`AdUiState`** for apps that render ad chrome in Compose independently of the built-in `AdOverlayView` in `player-media3`.
+- **`ui-compose`** supplies **`AdOverlay`** / **`AdUiState`** / **`AdUiStyle`** / **`overrideContent`** for apps that render ad chrome in Compose. Use **`Media3AdsLoader.setShowBuiltInAdOverlay(false)`** and **`playerState`** to drive it; **`skipCurrentAd()`** triggers **`resumeContent`** on the adapter.
 
 ## Related Reading
 

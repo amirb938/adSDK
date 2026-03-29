@@ -19,6 +19,7 @@ import tech.done.ads.AdSdkLogConfig
 import tech.done.ads.player.AdsEventListener
 import tech.done.ads.player.AdsEventMulticaster
 import tech.done.ads.player.PlayerListener
+import tech.done.ads.player.PlayerState
 import tech.done.ads.core.DefaultAdEngine
 import tech.done.ads.network.NetworkLayer
 import tech.done.ads.player.media3.network.SampleNetworkLayer
@@ -76,9 +77,13 @@ class Media3AdsLoader(
     private var engine: DefaultAdEngine? = null
     private var adapter: Media3ImaLikePlayerAdapter? = null
     private var uiConfig: AdSdkUiConfig? = null
+    private var showBuiltInAdOverlay: Boolean = true
 
     private val _isAdPlaying = MutableStateFlow(false)
     val isAdPlaying: StateFlow<Boolean> = _isAdPlaying.asStateFlow()
+
+    private val _playerState = MutableStateFlow(PlayerState())
+    val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
 
     private val adPlaybackListeners = CopyOnWriteArraySet<AdPlaybackListener>()
     private var adPlaybackSignal = AdPlaybackSignal()
@@ -130,6 +135,19 @@ class Media3AdsLoader(
         rebuildIfReady()
     }
 
+    fun setShowBuiltInAdOverlay(show: Boolean) {
+        showBuiltInAdOverlay = show
+        rebuildIfReady()
+    }
+
+    fun skipCurrentAd() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { skipCurrentAd() }
+            return
+        }
+        adapter?.playerAdapter?.resumeContent()
+    }
+
     fun release() {
         val finalEvents = adPlaybackSignal.onReleased()
         if (Looper.getMainLooper() == Looper.myLooper()) {
@@ -155,6 +173,7 @@ class Media3AdsLoader(
         adapter = null
         engine?.release()
         engine = null
+        _playerState.value = PlayerState()
         contentPlayer = null
         adDisplayContainer = null
         contentUi = null
@@ -219,6 +238,7 @@ class Media3AdsLoader(
                 }
             },
             uiConfig = uiConfig,
+            showBuiltInAdOverlay = showBuiltInAdOverlay,
         )
 
         runCatching { observeJob?.cancel() }
@@ -237,6 +257,7 @@ class Media3AdsLoader(
 
         observeJob = scope.launch(Dispatchers.Main.immediate) {
             adapter!!.state.collectLatest { s ->
+                _playerState.value = s
                 applyAdPlaybackEvents(
                     adPlaybackSignal.onPlayerState(
                         inAd = s.isInAd,

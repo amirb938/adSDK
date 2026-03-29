@@ -10,9 +10,10 @@ The Gradle root project is named **DMA**. Published coordinates use the group **
 - **Timeline scheduling** (preroll, midroll, postroll) from VMAP
 - **Pluggable HTTP** through **`NetworkLayer`**
 - **VAST tracking** with a default **retrying** implementation
-- **Media3 path (recommended):** **`Media3AdsLoader`**, **`AdDisplayContainerView`**, dual-player ad/content handling, **`StateFlow`** **`isAdPlaying`**
+- **Media3 path (recommended):** **`Media3AdsLoader`**, **`AdDisplayContainerView`**, dual-player ad/content handling, **`StateFlow`** values **`isAdPlaying`** and **`playerState`** (**`PlayerState`** from **`player-common`**)
+- **Skip / custom chrome:** **`skipCurrentAd()`** (main thread), **`setShowBuiltInAdOverlay(false)`** to hide the built-in **`AdOverlayView`** and drive UI from **`playerState`** (e.g. **`ui-compose`** **`AdOverlay`**)
 - **Ad tag convenience:** **`requestAds(adTagUri)`** with automatic VMAP vs VAST detection; raw VAST wrapped as a synthetic preroll-only VMAP
-- **Optional Compose UI module** (**`ui-compose`**) for custom ad overlays independent of the default View-based overlay
+- **Optional Compose UI module** (**`ui-compose`**) — **`AdOverlay`**, **`AdUiStyle`**, **`overrideContent`**; works with **`Media3AdsLoader.playerState`** when the built-in overlay is turned off (see **[ui-compose](docs/ui-compose.md)** and **[sample-app](docs/sample-app.md)**)
 - **ExoPlayer2 adapter** for legacy single-player integrations (**`ExoPlayer2Adapter`**)
 
 ## Modules
@@ -123,7 +124,7 @@ When consuming this repository as composite builds or multiple artifacts, typica
 ### What the SDK provides
 
 - **`Media3AdsLoader`**: **`requestAds(adTagUri)`** (fetch and classify VMAP/VAST), **`start()`**, optional seek-bar midroll markers via **`setAdMarkersContainerView`**
-- Ad video rendering and **built-in ad UI** (skip, countdown) inside the container; styling via **`AdSdkUiConfig`** and resources (**`values/`**, **`values-fa/`**, etc.)
+- Ad video rendering and **built-in ad UI** (skip, countdown) inside the container by default; styling via **`AdSdkUiConfig`** and resources (**`values/`**, **`values-fa/`**, etc.). Call **`setShowBuiltInAdOverlay(false)`** if you render skip/countdown in Compose instead.
 
 ### XML layout example
 
@@ -233,6 +234,12 @@ fun PlayerScreen() {
                 AdDisplayContainerView(ctx).also { adsLoader.setAdDisplayContainer(it) }
             }
         )
+
+        // Optional: Compose ad chrome instead of the default View overlay — see docs/ui-compose.md
+        // adsLoader.setShowBuiltInAdOverlay(false)
+        // var ps by remember { mutableStateOf(PlayerState()) }
+        // LaunchedEffect(adsLoader) { adsLoader.playerState.collectLatest { ps = it } }
+        // AdOverlay(state = mapToAdUiState(ps), onSkip = { adsLoader.skipCurrentAd() }, ...)
     }
 
     LaunchedEffect(Unit) {
@@ -248,6 +255,16 @@ fun PlayerScreen() {
     }
 }
 ```
+
+### Custom Compose overlay (Media3)
+
+To use **`ui-compose`** **`AdOverlay`** while keeping **`Media3AdsLoader`**:
+
+1. **`adsLoader.setShowBuiltInAdOverlay(false)`** — avoids duplicate skip/countdown UI (**`AdOverlayView`** is not added).
+2. Collect **`adsLoader.playerState`** and map **`PlayerState`** → **`AdUiState`** (see **`sample-app`** **`SampleComposeAdOverlay.kt`**).
+3. On skip, call **`adsLoader.skipCurrentAd()`** (safe on any thread; posts to main internally).
+
+**`DefaultAdEngine`** waits for the linear ad to finish **or** for the adapter to leave the ad (**`isInAd == false`**, e.g. after **`skipCurrentAd`**), so the timeline advances correctly after a user skip.
 
 ### Pre-fetched VMAP XML
 
@@ -284,4 +301,4 @@ engine.start()
 
 - **VMAP vs VAST:** **`requestAds`** inspects the first XML root tag; unsupported roots fail fast with a clear error.
 - **Debug logging:** **`Media3AdsLoader(..., debugLogging = true)`** or **`AdSdkLogConfig.isDebugLoggingEnabled`** controls verbose tracing where implemented.
-- **Threading:** Configure **`Media3AdsLoader`** (player + ad container) on the **main** thread.
+- **Threading:** Configure **`Media3AdsLoader`** (player + ad container) on the **main** thread. **`skipCurrentAd()`** may be called from a background thread; it forwards to the main looper.
