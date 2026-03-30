@@ -116,15 +116,36 @@
       }
     </style>
     <script>
-      function post(type) {
+      var simidSessionId = null;
+      var simidMessageId = 1;
+
+      function post(type, args) {
         try {
           if (window.AndroidSimidBridge && window.AndroidSimidBridge.postMessage) {
-            window.AndroidSimidBridge.postMessage(JSON.stringify({ type: type }));
+            var msg = {
+              sessionId: simidSessionId || "",
+              messageId: simidMessageId++,
+              timestamp: Date.now(),
+              type: type,
+              args: args || {},
+            };
+            window.AndroidSimidBridge.postMessage(JSON.stringify(msg));
           }
         } catch (e) {
           // no-op
         }
       }
+
+      window.onSimidMessage = function (m) {
+        try {
+          if (!m || !m.type) return;
+          if (m.sessionId) simidSessionId = m.sessionId;
+          if (m.type === "init") {
+            post("ready", {});
+          }
+        } catch (e) {}
+      };
+
       function setStatus(text) {
         var el = document.getElementById("status");
         if (el) el.textContent = text;
@@ -135,7 +156,7 @@
     </script>
   </head>
   <body>
-    <div class="scrim" onclick="post('SIMID_requestPlay');"></div>
+    <div class="scrim" onclick="post('requestPlay', {});"></div>
     <div class="card" role="dialog" aria-label="SIMID Mock Overlay">
       <h1>Interactive overlay (SIMID mock)</h1>
       <p>
@@ -144,7 +165,7 @@
       </p>
 
       <form
-        onsubmit="event.preventDefault(); post('SIMID_requestPlay'); setStatus('Submitted. Requested play.'); return false;"
+        onsubmit="event.preventDefault(); post('requestPlay', {}); setStatus('Submitted. Requested play.'); return false;"
       >
         <label for="phone">Phone number</label>
         <input
@@ -160,7 +181,7 @@
           <button
             type="button"
             class="danger"
-            onclick="post('SIMID_requestPause'); setStatus('Requested pause.');"
+            onclick="post('requestPause', {}); setStatus('Requested pause.');"
           >
             Pause Ad
           </button>
@@ -170,7 +191,7 @@
           <button
             type="button"
             class="secondary"
-            onclick="post('SIMID_requestPlay'); setStatus('Requested play.');"
+            onclick="post('requestPlay', {}); setStatus('Requested play.');"
           >
             Play Ad
           </button>

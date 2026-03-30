@@ -1,5 +1,9 @@
 package tech.done.ads.player.media3.ima
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import android.annotation.SuppressLint
 import android.os.Looper
 import android.view.View
@@ -12,14 +16,19 @@ import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
+import tech.done.ads.player.SimidEventListener
 import tech.done.ads.player.PlayerAdapter
 import tech.done.ads.player.PlayerListener
 import tech.done.ads.player.PlayerState
 import tech.done.ads.player.media3.ima.internal.AdOverlayView
+import timber.log.Timber
+import java.util.UUID
 
 
 internal class Media3ImaLikePlayerAdapter(
@@ -31,6 +40,12 @@ internal class Media3ImaLikePlayerAdapter(
     private val uiConfig: AdSdkUiConfig? = null,
     private val showBuiltInAdOverlay: Boolean = true,
 ) {
+    private val logTag = "Player/Media3SIMID"
+    private var simidReadySessionId: String? = null
+    private var simidSessionId: String? = null
+    private var simidHandshakeJob: Job? = null
+    private var lastSimidTimeUpdateSecond: Long? = null
+
 
     interface ContentUi {
         fun onAdStarted()
@@ -120,6 +135,10 @@ internal class Media3ImaLikePlayerAdapter(
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (_state.value.isInAd) _state.value = _state.value.copy(isPlaying = isPlaying)
+            if (_state.value.isInAd && simidSessionId != null) {
+                val t = JSONObject().put("currentTime", adPlayer.currentPosition / 1000.0).toString()
+                adDisplayContainer.sendSimidMessage(if (isPlaying) "play" else "pause", t)
+            }
         }
     }
 
@@ -131,9 +150,22 @@ internal class Media3ImaLikePlayerAdapter(
         }
         ensureAdViewsAdded()
         adDisplayContainer.setSimidEventListener(
-            object : AdDisplayContainerView.SimidEventListener {
-                override fun onRequestPause() = playerAdapter.pause()
-                override fun onRequestPlay() = playerAdapter.play()
+            object : SimidEventListener {
+                override fun onSimidReady(sessionId: String) {
+                    simidReadySessionId = sessionId
+                }
+
+                override fun onSimidAction(sessionId: String, type: String, args: JSONObject?) {
+                    when (type.lowercase()) {
+                        "requestpause" -> playerAdapter.pause()
+                        "requestplay" -> playerAdapter.play()
+                        "requeststop", "requestskip" -> playerAdapter.resumeContent()
+                        "click" -> {
+                            val url = args?.optString("url")?.takeIf { it.isNotBlank() } ?: return
+                            openClickUrl(url)
+                        }
+                    }
+                }
             },
         )
         startPolling()
@@ -141,6 +173,7 @@ internal class Media3ImaLikePlayerAdapter(
 
     fun release() {
         runCatching { pollJob?.cancel() }
+        runCatching { simidHandshakeJob?.cancel() }
         runCatching { contentPlayer.removeListener(contentListener) }
         runCatching { adPlayer.removeListener(adListener) }
         runCatching { adDisplayContainer.setSimidEventListener(null) }
@@ -191,20 +224,49 @@ internal class Media3ImaLikePlayerAdapter(
 
         adPlayer.setMediaItem(MediaItem.fromUri(mediaUri))
         adPlayer.prepare()
-        adPlayer.playWhenReady = true
+        adPlayer.playWhenReady = false
 
         if (!simidInteractiveCreativeUrl.isNullOrBlank()) {
-            adDisplayContainer.loadSimidCreative(simidInteractiveCreativeUrl)
+            simidSessionId = UUID.randomUUID().toString()
+            simidReadySessionId = null
+            lastSimidTimeUpdateSecond = null
+            adDisplayContainer.loadSimidCreative(simidInteractiveCreativeUrl, simidSessionId!!)
             // Keep built-in skip / ad chrome above the SIMID layer when enabled.
             if (showBuiltInAdOverlay) {
                 adOverlayView.bringToFront()
             }
+            simidHandshakeJob?.cancel()
+            simidHandshakeJob = scope.launch {
+                val sid = simidSessionId ?: return@launch
+                val ready = withTimeoutOrNull(10_000L) {
+                    while (simidReadySessionId != sid) {
+                        delay(50)
+                        if (!_state.value.isInAd) return@withTimeoutOrNull false
+                    }
+                    true
+                } == true
+
+                if (!ready) {
+                    Timber.tag(logTag).w("SIMID ready timeout; fallback to linear ad playback sid=%s", sid)
+                }
+                adPlayer.playWhenReady = true
+            }
+            return
         }
+        adPlayer.playWhenReady = true
     }
 
     private fun endAdAndResumeContent() {
         if (!_state.value.isInAd) return
 
+        simidHandshakeJob?.cancel()
+        simidHandshakeJob = null
+        simidSessionId = null
+        simidReadySessionId = null
+        lastSimidTimeUpdateSecond = null
+        runCatching {
+            adDisplayContainer.sendSimidMessage("ended", JSONObject().put("currentTime", adPlayer.currentPosition / 1000.0).toString())
+        }
         adDisplayContainer.hideSimidCreative()
 
         adPlayer.playWhenReady = false
@@ -245,6 +307,17 @@ internal class Media3ImaLikePlayerAdapter(
                     val pos = adPlayer.currentPosition
                     val dur = adPlayer.duration.takeIf { it > 0 }
                     _state.value = _state.value.copy(adPositionMs = pos, adDurationMs = dur)
+
+                    // SIMID outgoing timeUpdate.
+                    if (simidSessionId != null) {
+                        val sec = pos / 1000L
+                        if (lastSimidTimeUpdateSecond != sec) {
+                            lastSimidTimeUpdateSecond = sec
+                            val args = JSONObject().put("currentTime", pos / 1000.0).toString()
+                            adDisplayContainer.sendSimidMessage("timeUpdate", args)
+                        }
+                    }
+
                     if (showBuiltInAdOverlay) {
                         adOverlayView.render(
                             inAd = true,
@@ -269,6 +342,23 @@ internal class Media3ImaLikePlayerAdapter(
                     }
                 }
                 delay(pollIntervalMs)
+            }
+        }
+    }
+
+    private fun openClickUrl(url: String) {
+        runCatching {
+            val uri = Uri.parse(url)
+            val intent = Intent(Intent.ACTION_VIEW, uri)
+            val ctx = adDisplayContainer.context
+            if (ctx !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(intent)
+            Timber.tag(logTag).d("opened click url=%s", url)
+        }.onFailure { t ->
+            if (t is ActivityNotFoundException) {
+                Timber.tag(logTag).w(t, "no activity found for click url=%s", url)
+            } else {
+                Timber.tag(logTag).e(t, "failed to open click url=%s", url)
             }
         }
     }
