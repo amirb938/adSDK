@@ -16,7 +16,7 @@ The codebase is organized into Gradle subprojects with a clear dependency direct
 | **Parsing & scheduling** | `parser`, `scheduler` | XML parsing and VMAP → timeline (`AdTimeline`) |
 | **Execution** | `core` | `DefaultAdEngine` orchestrates playback, breaks, and tracking |
 | **Player abstraction** | `player-common` | `PlayerAdapter`, `PlayerState`, event listeners |
-| **Integrations** | `player-media3`, `player-exoplayer2` | Media3 IMA-like bridge vs. legacy ExoPlayer2 adapter |
+| **Integrations** | `player-media3` | Media3 IMA-like bridge |
 | **UI (optional)** | `ui-compose` | Jetpack Compose overlay primitives (not wired into `player-media3` by default) |
 | **Demo** | `sample-app` | Sample host using `Media3AdsLoader` and Compose shell |
 
@@ -50,10 +50,6 @@ player-media3
   → core, parser, scheduler, tracking, network, player-common
   → Media3 (ExoPlayer, common, UI)
 
-player-exoplayer2
-  → player-common
-  → ExoPlayer2
-
 core
   → parser, scheduler, tracking, network, player-common
 
@@ -74,20 +70,23 @@ ui-compose
 
 ## Key Runtime Components
 
+- **`AdsLoader`**  
+  Player-agnostic facade: wires `DefaultAdEngine`, parsers, scheduler, tracking, and a host-provided `PlayerAdapter`. Defaults to `DefaultNetworkLayer` + `RetryingTrackingEngine` when not configured. For hosts that don't want to pass a player object into the SDK, `AdsLoader.createWithExternalPlayer(...)` exposes a command interface (`PlayerCommandListener`) and a state/event sink (`ExternalPlayerAdapter`).
+
 - **`Media3AdsLoader`**  
-  Facade: wires `DefaultAdEngine`, parsers, scheduler, tracking, and `Media3ImaLikePlayerAdapter`. Prefer **`Media3AdsLoader.builder(context)`** (fluent `network`, `tracking`, `scope`, `debugLogging`) over the deprecated primary constructor. Exposes `StateFlow` `isAdPlaying`, `StateFlow` `playerState`, optional `AdsEventListener` multicasting, ad playback callbacks, `setShowBuiltInAdOverlay`, and `skipCurrentAd()`.
+  Media3 integration facade: wires `AdsLoader` and `Media3ImaLikePlayerAdapter`. Configure via **`Media3AdsLoader.builder(context)`** (fluent `network`, `tracking`, `scope`, `debugLogging`). Exposes `StateFlow` `isAdPlaying`, `StateFlow` `playerState`, optional `AdsEventListener` multicasting, ad playback callbacks, `setShowBuiltInAdOverlay`, and `skipCurrentAd()`.
 
 - **`DefaultAdEngine`**  
   Single orchestration point for timeline lifecycle, VAST resolution, skip handling, and coordination with `PlayerAdapter` and `TrackingEngine`. Propagates SDK callbacks through **`dispatchAdsEvent`** with **`AdsEventKind`** and **`AdsEventPayload`** so analytics and UI stay aligned with a single event taxonomy.
 
 - **`PlayerAdapter`**  
-  Abstract boundary so the same engine can drive Media3 (dual player) or ExoPlayer2 (single player swapping `MediaItem`).
+  Abstract boundary so the same engine can drive any player stack.
 
 ## Threading and Configuration
 
 - **`NetworkLayer.dispatcher`** is used for I/O (ad tag fetch, tracking).  
 - Engine and Media3 rebuild paths expect **main-thread** configuration for `Media3AdsLoader` / `AdDisplayContainerView`.  
-- **`AdSdkLogConfig.isDebugLoggingEnabled`** gates verbose logging across modules; `Media3AdsLoader` can enable it via **`Builder.debugLogging(...)`** (or the deprecated constructor).
+- **`AdSdkLogConfig.isDebugLoggingEnabled`** gates verbose logging across modules; loaders can enable it via **`Builder.debugLogging(...)`**.
 
 ## Extension Points
 
@@ -98,4 +97,4 @@ ui-compose
 
 ## Related Reading
 
-Module-level detail is in the [documentation index](../README.md#documentation). For ready-made prompts to draw SDK flow diagrams (Mermaid or image AI), see [diagram-generation-prompts.md](diagram-generation-prompts.md).
+Module-level detail is in the [documentation index](../README.md#documentation).

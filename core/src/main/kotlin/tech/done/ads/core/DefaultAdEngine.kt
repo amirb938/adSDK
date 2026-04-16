@@ -254,7 +254,7 @@ class DefaultAdEngine(
             val err = result.exceptionOrNull()
             AdSdkDebugLog.e(logTag, "Ad break failed breakId=$bid", err)
             dispatchAdsEvent(adsEventListener, AdsEventKind.AD_ERROR, bid, AdsEventPayload(error = err))
-            tracking.track(TrackingEvent.Error, emptyList())
+            scope.launch { tracking.track(TrackingEvent.Error, emptyList()) }
             _state.value = _state.value.copy(lastError = err)
         } else {
             AdSdkDebugLog.d(logTag, "Ad break finished breakId=$bid")
@@ -288,7 +288,7 @@ class DefaultAdEngine(
             val err = result.exceptionOrNull()
             AdSdkDebugLog.e(logTag, "Ad break (inline) failed breakId=$bid", err)
             dispatchAdsEvent(adsEventListener, AdsEventKind.AD_ERROR, bid, AdsEventPayload(error = err))
-            tracking.track(TrackingEvent.Error, emptyList())
+            scope.launch { tracking.track(TrackingEvent.Error, emptyList()) }
             _state.value = _state.value.copy(lastError = err)
         } else {
             AdSdkDebugLog.d(logTag, "Ad break (inline) finished breakId=$bid")
@@ -339,9 +339,9 @@ class DefaultAdEngine(
             launch = { block -> scope.launch { block() } },
         )
 
-        tracker.fireImpression()
+        scope.launch { tracker.fireImpression() }
         dispatchAdsEvent(adsEventListener, AdsEventKind.AD_IMPRESSION, breakId)
-        tracker.fireStart()
+        scope.launch { tracker.fireStart() }
 
         val skipOffsetMs = resolveSkipOffsetToMs(first.skipOffset, dur)
         val simidUrl =
@@ -373,6 +373,7 @@ class DefaultAdEngine(
         try {
             awaitAdEnd(
                 maxPlayingMs = waitMs,
+                maxWallClockMs = waitMs + bufferTimeoutMs,
                 onProgress = { posMs, durationMs ->
                     tracker.onProgress(posMs, durationMs)
                     dispatchAdsEvent(
@@ -400,6 +401,7 @@ class DefaultAdEngine(
 
     private suspend fun awaitAdEnd(
         maxPlayingMs: Long,
+        maxWallClockMs: Long,
         onProgress: (positionMs: Long, durationMs: Long?) -> Unit,
         onEnded: () -> Unit,
         onError: (Throwable) -> Unit,
@@ -426,10 +428,18 @@ class DefaultAdEngine(
         val watchdogJob = scope.launch {
             var playedNs = 0L
             var lastNs = System.nanoTime()
+            val startNs = lastNs
             while (!done.isCompleted) {
                 val nowNs = System.nanoTime()
                 val deltaNs = nowNs - lastNs
                 lastNs = nowNs
+
+                val wallMs = (nowNs - startNs) / 1_000_000L
+                if (wallMs > maxWallClockMs) {
+                    val t = IllegalStateException("Ad playback exceeded maxWallClockMs=$maxWallClockMs")
+                    if (!done.isCompleted) done.completeExceptionally(t)
+                    break
+                }
 
                 val s = player.state.value
                 if (s.isInAd && s.isPlaying) {

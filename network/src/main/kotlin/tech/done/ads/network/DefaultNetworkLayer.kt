@@ -1,19 +1,13 @@
-package tech.done.ads.player.media3.network
+package tech.done.ads.network
 
-import android.content.Context
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tech.done.ads.AdSdkLogConfig
-import tech.done.ads.network.NetworkLayer
-import tech.done.ads.network.NetworkResponse
 import timber.log.Timber
 import java.net.HttpURLConnection
 import java.net.URL
-
-
-class SampleNetworkLayer(
-    private val context: Context,
+class DefaultNetworkLayer(
     override val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : NetworkLayer {
 
@@ -24,15 +18,6 @@ class SampleNetworkLayer(
     ): NetworkResponse = withContext(dispatcher) {
         if (AdSdkLogConfig.isDebugLoggingEnabled) {
             Timber.tag(TAG).d("GET url=$url timeoutMs=$timeoutMs headers=${headers.keys.sorted()}")
-        }
-
-        if (url.startsWith("asset://")) {
-            val assetName = url.removePrefix("asset://")
-            val body = context.assets.open(assetName).bufferedReader().use { it.readText() }
-            if (AdSdkLogConfig.isDebugLoggingEnabled) {
-                Timber.tag(TAG).d("200 asset=$assetName bytes=${body.length}")
-            }
-            return@withContext NetworkResponse(code = 200, body = body)
         }
 
         if (url.startsWith("http://") || url.startsWith("https://")) {
@@ -69,6 +54,7 @@ class SampleNetworkLayer(
     }
 
     private companion object {
-        private const val TAG = "AdSDK/Network(Sample)"
+        private const val TAG = "AdSDK/Network(Default)"
     }
 }
+

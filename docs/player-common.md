@@ -26,7 +26,6 @@ The **player-common** module defines the **player-agnostic boundary** between th
 Custom player integrations implement **PlayerAdapter** and pass it to **DefaultAdEngine**. Reference implementations:
 
 - **player-media3:** **Media3ImaLikePlayerAdapter** exposes an internal **PlayerAdapter** to the engine.
-- **player-exoplayer2:** **ExoPlayer2Adapter** uses a single ExoPlayer2 instance and swaps **MediaItem** for ads versus content.
 
 Subscribe to SDK events via **`Media3AdsLoader.addAdSdkEventListener`**. **`AdsEventListener`** inherits default empty implementations from **`AdsSchedulingListener`** and **`AdsCreativePlaybackListener`**, so you override only the callbacks you care about:
 

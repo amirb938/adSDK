@@ -16,10 +16,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tech.done.ads.AdSdkLogConfig
-import tech.done.ads.core.DefaultAdEngine
+import tech.done.ads.core.AdsLoader
 import tech.done.ads.network.NetworkLayer
-import tech.done.ads.parser.impl.VASTPullParser
-import tech.done.ads.parser.impl.VMAPPullParser
 import tech.done.ads.parser.model.VMAPResponse
 import tech.done.ads.player.AdsEventListener
 import tech.done.ads.player.AdsEventMulticaster
@@ -27,7 +25,6 @@ import tech.done.ads.player.PlayerListener
 import tech.done.ads.player.PlayerState
 import tech.done.ads.player.media3.ima.internal.AdPlaybackSignal
 import tech.done.ads.player.media3.network.SampleNetworkLayer
-import tech.done.ads.scheduler.VMAPScheduler
 import tech.done.ads.tracking.RetryingTrackingEngine
 import tech.done.ads.tracking.TrackingEngine
 import java.util.concurrent.CopyOnWriteArraySet
@@ -36,7 +33,7 @@ class Media3AdsLoader private constructor(
     private val network: NetworkLayer,
     private val tracking: TrackingEngine,
     private val scope: CoroutineScope,
-    debugLogging: Boolean,
+    private val debugLogging: Boolean,
 ) {
     init {
         AdSdkLogConfig.isDebugLoggingEnabled = debugLogging
@@ -68,21 +65,6 @@ class Media3AdsLoader private constructor(
         fun builder(context: Context): Builder = Builder(context)
     }
 
-    @Deprecated(
-        message = "Use Media3AdsLoader.builder(context).… .build() for clearer configuration.",
-        replaceWith = ReplaceWith(
-            "Media3AdsLoader.builder(context).scope(scope).debugLogging(debugLogging).build()",
-            "tech.done.ads.player.media3.ima.Media3AdsLoader",
-        ),
-    )
-    constructor(
-        context: Context,
-        network: NetworkLayer = SampleNetworkLayer(context),
-        tracking: TrackingEngine = RetryingTrackingEngine(network),
-        scope: CoroutineScope = MainScope(),
-        debugLogging: Boolean = false,
-    ) : this(network, tracking, scope, debugLogging)
-
     interface ContentUi {
         fun onAdStarted()
         fun onAdEnded()
@@ -102,7 +84,7 @@ class Media3AdsLoader private constructor(
     private var adMarkersContainerView: View? = null
     private var videoSurfaceView: View? = null
 
-    private var engine: DefaultAdEngine? = null
+    private var adsLoader: AdsLoader? = null
     private var adapter: Media3ImaLikePlayerAdapter? = null
     private var uiConfig: AdSdkUiConfig? = null
     private var showBuiltInAdOverlay: Boolean = true
@@ -199,8 +181,8 @@ class Media3AdsLoader private constructor(
 
         adapter?.release()
         adapter = null
-        engine?.release()
-        engine = null
+        adsLoader?.release()
+        adsLoader = null
         _playerState.value = PlayerState()
         contentPlayer = null
         adDisplayContainer = null
@@ -210,19 +192,14 @@ class Media3AdsLoader private constructor(
     }
 
     fun requestAdsFromVMAPXml(vmapXml: String) {
-        val e = engine
+        val l = adsLoader
             ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
-        scope.launch(Dispatchers.Main.immediate) {
-            applyAdMarkersFromVMAPXmlOrClear(vmapXml)
-            e.loadVMAP(vmapXml)
-        }
+        scope.launch(Dispatchers.Main.immediate) { applyAdMarkersFromVMAPXmlOrClear(vmapXml) }
+        l.requestAdsFromVMAPXml(vmapXml)
     }
 
-    @Deprecated("Use requestAdsFromVMAPXml", ReplaceWith("requestAdsFromVMAPXml(vmapXml)"))
-    fun requestAdsFromVmapXml(vmapXml: String) = requestAdsFromVMAPXml(vmapXml)
-
     fun requestAds(adTagUri: String, timeoutMs: Long = 10_000L) {
-        val e = engine
+        val l = adsLoader
             ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
         scope.launch(network.dispatcher) {
             val resp = network.get(adTagUri, timeoutMs = timeoutMs)
@@ -234,17 +211,15 @@ class Media3AdsLoader private constructor(
                 XmlKind.VAST -> wrapVASTAsVMAPPreroll(xml)
                 XmlKind.Unknown -> error("Unknown ad response. Expected VMAP or VAST. url=$adTagUri")
             }
-            withContext(Dispatchers.Main.immediate) {
-                applyAdMarkersFromVMAPXmlOrClear(vmapXml)
-                e.loadVMAP(vmapXml)
-            }
+            withContext(Dispatchers.Main.immediate) { applyAdMarkersFromVMAPXmlOrClear(vmapXml) }
+            l.requestAdsFromVMAPXml(vmapXml)
         }
     }
 
     fun start() {
-        val e = engine
+        val l = adsLoader
             ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
-        e.start()
+        l.start()
     }
 
     private fun rebuildIfReady() {
@@ -298,17 +273,15 @@ class Media3AdsLoader private constructor(
             }
         }
 
-        engine?.release()
-        engine = DefaultAdEngine(
-            player = adapter!!.playerAdapter,
-            vmapParser = VMAPPullParser(),
-            vastParser = VASTPullParser(),
-            scheduler = VMAPScheduler(),
-            network = network,
-            tracking = tracking,
-            mainDispatcher = Dispatchers.Main,
-            adsEventListener = adSdkEventMulticaster,
-        ).apply { initialize() }
+        adsLoader?.release()
+        adsLoader = AdsLoader.builder()
+            .network(network)
+            .tracking(tracking)
+            .scope(scope)
+            .playerAdapter(adapter!!.playerAdapter)
+            .adsEventListener(adSdkEventMulticaster)
+            .debugLogging(debugLogging)
+            .build()
     }
 
     private fun applyAdPlaybackEvents(events: List<AdPlaybackSignal.Event>) {
@@ -371,13 +344,17 @@ class Media3AdsLoader private constructor(
 
     private fun applyAdMarkersFromVMAPXmlOrClear(vmapXml: String) {
         val root = adMarkersContainerView ?: return
-        val parsed: VMAPResponse = runCatching { VMAPPullParser().parse(vmapXml) }.getOrNull()
+        val loader = adsLoader ?: run {
+            applyAdMarkers(root, longArrayOf())
+            return
+        }
+        val parsed: VMAPResponse = runCatching { loader.parseVMAP(vmapXml) }.getOrNull()
             ?: run {
                 applyAdMarkers(root, longArrayOf())
                 return
             }
 
-        val timeline = VMAPScheduler().buildTimeline(parsed)
+        val timeline = tech.done.ads.scheduler.VMAPScheduler().buildTimeline(parsed)
         val markersMs = timeline.midrolls
             .mapNotNull { it.triggerTimeMs }
             .filter { it > 0 }

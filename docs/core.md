@@ -8,6 +8,7 @@ The **core** module hosts the primary ad orchestration engine. It connects VMAP-
 
 | Symbol | Responsibility |
 |--------|----------------|
+| **`AdsLoader`** | Player-agnostic facade: builds and owns a `DefaultAdEngine`, exposes `requestAds(...)`, `requestAdsFromVMAPXml(...)`, `start()`, `skipCurrentAd()`, `release()`. Defaults to `DefaultNetworkLayer` + `RetryingTrackingEngine` and a default `CoroutineScope` when not configured. Supports `createWithExternalPlayer(...)` for command-based integrations via `PlayerCommandListener` + `ExternalPlayerAdapter`. |
 | **`AdEngine`** | Lifecycle API: `initialize`, `start`, `stop`, `release`, and suspend `loadVMAP(xml)`. Exposes read-only **`AdState`**. |
 | **`DefaultAdEngine`** | Parses VMAP, builds timeline via **`AdScheduler`**, fetches and parses VAST, plays ad breaks in sequence, handles skip offsets, fires **`TrackingEngine`** events, and notifies **`AdsEventListener`** through **`dispatchAdsEvent`** (**`AdsEventKind`**, **`AdsEventPayload`**). Maintains **`StateFlow<AdEngineState>`** (`stateFlow`) for fine-grained UI/state observation. While a linear ad is playing, the engine waits for playback to end **or** for **`PlayerState.isInAd`** to become **`false`** (for example after the host calls **`PlayerAdapter.resumeContent()`** / user skip), so **`onAdEnded`** is not required when the ad **`ExoPlayer`** is stopped without reaching **`STATE_ENDED`**. The internal “ad wait” watchdog is based on **playing time** (paused time excluded) so pausing an ad does not cause the engine to exit the ad break prematurely. |
 | **`AdState` / `AdEngineState`** | Phase (`Idle`, `Initialized`, `Running`, `Stopped`, `Released`, `Error`), `loaded`, `inAd`, `currentBreak`, `lastError`. |
@@ -20,6 +21,29 @@ Internal helpers (for example **`AdSdkDebugLog`**) support consistent debug tagg
 - **Third-party:** Kotlin Coroutines, Timber
 
 ## Integration / Usage
+
+**Recommended (player-agnostic)**:
+
+```kotlin
+val adsLoader = AdsLoader.builder()
+    .playerAdapter(playerAdapter)
+    .debugLogging(true)
+    .build()
+
+adsLoader.requestAdsFromVMAPXml(vmapXml)
+adsLoader.start()
+```
+
+**External player control (no player object passed to the SDK)**:
+
+```kotlin
+val setup = AdsLoader.createWithExternalPlayer(
+    commands = playerCommandListener,
+    debugLogging = true,
+)
+val adsLoader = setup.adsLoader
+val adapter = setup.playerAdapter
+```
 
 **Direct engine usage** (advanced or custom player integration):
 

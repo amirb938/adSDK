@@ -10,25 +10,25 @@ The Gradle root project is named **DMA**. Published coordinates use the group **
 - **Timeline scheduling** (preroll, midroll, postroll) from VMAP
 - **Pluggable HTTP** through **`NetworkLayer`**
 - **VAST tracking** with a default **retrying** implementation
-- **Media3 path (recommended):** **`Media3AdsLoader`** (fluent **`Media3AdsLoader.builder(context)`**; the legacy constructor is deprecated), **`AdDisplayContainerView`**, dual-player ad/content handling, **`StateFlow`** values **`isAdPlaying`** and **`playerState`** (**`PlayerState`** from **`player-common`**, including **`isAdSkippable`** for UI)
+- **Player-agnostic entry point:** **`AdsLoader`** (module **`core`**) drives ad playback through **`PlayerAdapter`** (module **`player-common`**) and defaults to **`DefaultNetworkLayer`** + **`RetryingTrackingEngine`** when not configured
+- **External player control (optional):** **`AdsLoader.createWithExternalPlayer(...)`** for hosts that don't want to pass a player object into the SDK; the SDK issues commands via **`PlayerCommandListener`** and the host reports state/events back via **`ExternalPlayerAdapter`**
+- **Media3 path (recommended):** **`Media3AdsLoader`** (fluent **`Media3AdsLoader.builder(context)`**), **`AdDisplayContainerView`**, dual-player ad/content handling, **`StateFlow`** values **`isAdPlaying`** and **`playerState`** (**`PlayerState`** from **`player-common`**, including **`isAdSkippable`** for UI)
 - **Skip / custom chrome:** **`skipCurrentAd()`** (main thread), **`setShowBuiltInAdOverlay(false)`** to hide the built-in **`AdOverlayView`** and drive UI from **`playerState`** (e.g. **`ui-compose`** **`AdOverlay`**); custom overlays should respect **`isAdSkippable`** so non-skippable creatives do not show a skip affordance
 - **Ad tag convenience:** **`requestAds(adTagUri)`** with automatic VMAP vs VAST detection; raw VAST wrapped as a synthetic preroll-only VMAP
 - **SIMID-like interactive overlay (basic):** parses **`<InteractiveCreativeFile apiFramework="SIMID">`** from VAST Linear creatives, renders it as a **transparent `WebView`** on top of the ad player, and supports a minimal JS → Kotlin bridge (`AndroidSimidBridge.postMessage`) for **pause/play** requests
 - **Optional Compose UI module** (**`ui-compose`**) — **`AdOverlay`**, **`AdUiStyle`**, **`overrideContent`**; works with **`Media3AdsLoader.playerState`** when the built-in overlay is turned off (see **[ui-compose](docs/ui-compose.md)** and **[sample-app](docs/sample-app.md)**)
-- **ExoPlayer2 adapter** for legacy single-player integrations (**`ExoPlayer2Adapter`**)
 
 ## Modules
 
 | Module | Description |
 |--------|-------------|
-| **core** | **`DefaultAdEngine`** — orchestrates timeline, VAST, **`PlayerAdapter`**, and tracking |
+| **core** | **`AdsLoader`** (player-agnostic facade) + **`DefaultAdEngine`** — orchestrates timeline, VAST, **`PlayerAdapter`**, and tracking |
 | **parser** | VMAP/VAST pull parsers and models |
 | **scheduler** | VMAP → **`AdTimeline`** (**`VMAPScheduler`**) |
 | **tracking** | **`TrackingEngine`**, **`RetryingTrackingEngine`** |
 | **network** | **`NetworkLayer`**, **`NetworkResponse`**, **`AdSdkLogConfig`** |
-| **player-common** | **`PlayerAdapter`**, **`PlayerState`**, **`AdsEventListener`** (**`AdsSchedulingListener`** + **`AdsCreativePlaybackListener`**), **`AdsEventKind`** / **`dispatchAdsEvent`**, multicaster |
+| **player-common** | **`PlayerAdapter`**, **`PlayerState`**, **`PlayerCommandListener`**, **`ExternalPlayerAdapter`**, **`AdsEventListener`** (**`AdsSchedulingListener`** + **`AdsCreativePlaybackListener`**), **`AdsEventKind`** / **`dispatchAdsEvent`**, multicaster |
 | **player-media3** | **`Media3AdsLoader`**, **`AdDisplayContainerView`**, Media3 integration |
-| **player-exoplayer2** | **`ExoPlayer2Adapter`** for ExoPlayer2 |
 | **ui-compose** | **`AdOverlay`**, **`AdUiState`**, **`AdUiStyle`** (Jetpack Compose) |
 | **sample-app** | Demo app (Compose shell, asset VMAP, event logging) |
 
@@ -44,10 +44,8 @@ In-depth technical documentation lives under **`docs/`**:
 - **[network](docs/network.md)** — HTTP abstraction and logging config
 - **[player-common](docs/player-common.md)** — player boundary types
 - **[player-media3](docs/player-media3.md)** — Media3 IMA-like integration
-- **[player-exoplayer2](docs/player-exoplayer2.md)** — ExoPlayer2 adapter
 - **[ui-compose](docs/ui-compose.md)** — Compose overlay primitives
 - **[sample-app](docs/sample-app.md)** — sample application module
-- **[Diagram prompts (Mermaid / image AI)](docs/diagram-generation-prompts.md)** — پرامپت‌های آماده برای رسم دیاگرام فرآیند SDK
 
 ## Limitations compared with Google IMA SDK
 
@@ -123,7 +121,7 @@ When consuming this repository as composite builds or multiple artifacts, typica
 
 - A **content** **`ExoPlayer`** (Media3) and **`PlayerView`**
 - An **`AdDisplayContainerView`** in the same parent as the player (typically full-bleed on top)
-- A **`NetworkLayer`** implementation (OkHttp, Ktor, etc.)
+- Optional: a **`NetworkLayer`** implementation (OkHttp, Ktor, etc.)
 
 ### What the SDK provides
 
@@ -178,8 +176,8 @@ class PlayerActivity : AppCompatActivity() {
         val network: NetworkLayer = /* your OkHttp/Ktor implementation */
 
         adsLoader = Media3AdsLoader.builder(this)
-            .network(network)
             .scope(scope)
+            .network(network) // optional
             .build()
             .apply {
             setPlayer(contentPlayer)
@@ -280,28 +278,6 @@ If you already have VMAP XML (CDN, cache, assets):
 ```kotlin
 adsLoader.requestAdsFromVMAPXml(vmapXmlString)
 adsLoader.start()
-```
-
-## Usage with ExoPlayer2
-
-The **IMA-like container and loader** are implemented for **Media3**. For **ExoPlayer2**, this repository provides **`ExoPlayer2Adapter`** for use with **`DefaultAdEngine`**; you supply ad UI yourself (or integrate **`ui-compose`** separately).
-
-```kotlin
-val contentPlayer: com.google.android.exoplayer2.ExoPlayer = /* ... */
-val adapter = ExoPlayer2Adapter(player = contentPlayer, scope = scope)
-
-val engine = DefaultAdEngine(
-    player = adapter,
-    vmapParser = VMAPPullParser(),
-    vastParser = VASTPullParser(),
-    scheduler = VMAPScheduler(),
-    network = network,
-    tracking = tracking,
-    mainDispatcher = Dispatchers.Main,
-).apply { initialize() }
-
-lifecycleScope.launch { engine.loadVMAP(vmapXmlString) }
-engine.start()
 ```
 
 ## Notes

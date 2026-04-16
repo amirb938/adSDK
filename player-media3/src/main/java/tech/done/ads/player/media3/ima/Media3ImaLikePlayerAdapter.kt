@@ -197,6 +197,9 @@ internal class Media3ImaLikePlayerAdapter(
 
     private fun startAd(mediaUri: String, adSkipOffsetMs: Long?, simidInteractiveCreativeUrl: String?) {
         ensureAdViewsAdded()
+        if (adPlayerView.player !== adPlayer) {
+            adPlayerView.player = adPlayer
+        }
 
         if (!_state.value.isInAd) {
             savedContentItem = contentPlayer.currentMediaItem
@@ -272,6 +275,8 @@ internal class Media3ImaLikePlayerAdapter(
         adPlayer.playWhenReady = false
         adPlayer.stop()
         adPlayer.clearMediaItems()
+        runCatching { adPlayerView.player = null }
+        runCatching { adPlayer.clearVideoSurface() }
         adPlayerView.visibility = View.GONE
         if (showBuiltInAdOverlay) {
             adOverlayView.setVisible(false)

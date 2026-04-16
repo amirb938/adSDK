@@ -33,3 +33,5 @@ DefaultAdEngine(
 ```
 
 **`Media3AdsLoader`** uses the same default pull parsers. **`Media3AdsLoader.requestAds`** may also use **`VMAPPullParser`** and **`VMAPScheduler`** to derive midroll marker positions for the seek bar without going through the engine.
+
+**`AdsLoader`** (module `core`) builds a `DefaultAdEngine` with the default pull parsers as well.

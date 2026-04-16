@@ -16,9 +16,10 @@ Some scenarios use **Compose for the ad overlay** instead of the default View ov
 
 | Symbol | Responsibility |
 |--------|----------------|
-| **`MainActivity`** | Hosts a lightweight Compose navigation state and switches between **Main Menu** and player scenario screens. Back button returns to the menu. |
+| **`MainActivity`** | Hosts a lightweight Compose navigation state and switches between **Main Menu** and player scenario screens. Main menu requires double-back to exit. |
 | **`MainMenuScreen`** | Vertical button list for scenarios; focus styling for Android TV. |
-| **`PlayerScreens.kt`** | Builds an **`ExoPlayer`** + **`Media3AdsLoader`** per scenario, wires **`PlayerView`** + **`AdDisplayContainerView`**, loads VMAP as a string from assets via **`requestAdsFromVMAPXml`**, calls **`start()`**, and releases everything via **`DisposableEffect`**. |
+| **`tech.done.ads.sample.player.*`** | Scenario screens implemented with `Media3AdsLoader` and Compose UI. |
+| **`ExternalPlayerActivity`** | Demonstrates `AdsLoader.createWithExternalPlayer(...)`: the app uses Media3 internally but treats the SDK as if it were integrating with a non-Media3 player by mapping SDK commands to player calls and reporting state/events back through `ExternalPlayerAdapter`. |
 | **`SampleComposeAdOverlay.kt`** | **`playerStateToAdUiState`**, **`SampleCustomAdOverlay`** — maps **`PlayerState`** (including **`isAdSkippable`**: no skip affordance when the creative is not skippable), themed **`AdUiStyle`**, custom top bar via **`overrideContent`**; skip **`FocusRequester`** only when skip UI is shown. |
 | **`SampleApplication`** | Application class (Timber tree setup if configured). |
 | **`SampleNetworkLayer`** | App-level **`NetworkLayer`** for real device fetches when not using the loader’s **`SampleNetworkLayer`**. |

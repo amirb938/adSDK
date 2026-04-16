@@ -44,7 +44,7 @@ class SampleNetworkLayer(
             return@withContext try {
                 val code = conn.responseCode
                 val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-                val body = stream?.bufferedReader()?.use { it.readText() }
+                val body = stream?.use { it.bufferedReader().use { r -> r.readText() } }
                 if (AdSdkLogConfig.isDebugLoggingEnabled) {
                     Timber.tag(TAG).d("$code bytes=${body?.length ?: 0}")
                 }
