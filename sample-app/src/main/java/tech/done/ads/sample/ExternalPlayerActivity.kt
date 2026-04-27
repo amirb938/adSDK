@@ -14,10 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -46,6 +42,7 @@ class ExternalPlayerActivity : ComponentActivity() {
 
     private var setup: AdsLoader.ExternalSetup? = null
     private var adSkipOffsetMs: Long? = null
+    private var hasStartedAds: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,6 +95,7 @@ class ExternalPlayerActivity : ComponentActivity() {
 
         setup = AdsLoader.createWithExternalPlayer(
             commands = commands,
+            network = SampleNetworkLayer(this),
             debugLogging = true,
         ).also { it.adsLoader.addAdSdkEventListener(SampleAdsEventLogger()) }
 
@@ -125,7 +123,6 @@ class ExternalPlayerActivity : ComponentActivity() {
             MaterialTheme {
                 BackHandler { finish() }
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    var started by remember { mutableStateOf(false) }
                     Box(Modifier.fillMaxSize()) {
                         AndroidView(
                             modifier = Modifier.fillMaxSize(),
@@ -141,24 +138,30 @@ class ExternalPlayerActivity : ComponentActivity() {
                         ) {
                             Text(text = "ExternalPlayerActivity", style = MaterialTheme.typography.titleMedium)
                             Button(
-                                enabled = !started,
-                                onClick = { started = true },
+                                onClick = { startAdsFromVmapAsset() },
                             ) {
-                                Text("Start Ads (VMAP asset)")
+                                Text("Reload Ads (VMAP asset)")
                             }
                         }
 
-                        LaunchedEffect(started) {
-                            if (!started) return@LaunchedEffect
-                            val xml = assets.open(SampleConfig.Assets.VMAP).bufferedReader().use { it.readText() }
-                            val l = setup?.adsLoader ?: return@LaunchedEffect
-                            l.requestAdsFromVMAPXml(xml)
-                            l.start()
+                        // Keep external-player sample behavior aligned with other scenario screens:
+                        // open screen -> load VMAP -> start ad engine.
+                        LaunchedEffect(Unit) {
+                            if (hasStartedAds) return@LaunchedEffect
+                            hasStartedAds = true
+                            startAdsFromVmapAsset()
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun startAdsFromVmapAsset() {
+        val l = setup?.adsLoader ?: return
+        val xml = assets.open(SampleConfig.Assets.VMAP).bufferedReader().use { it.readText() }
+        l.requestAdsFromVMAPXml(xml)
+        l.start()
     }
 
     private fun startPolling() {
