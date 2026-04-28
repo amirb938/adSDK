@@ -3,12 +3,14 @@ package tech.done.ads.player.media3.ima
 import android.content.Context
 import android.graphics.Color
 import android.util.AttributeSet
+import android.view.Gravity
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import android.widget.ProgressBar
 import org.json.JSONObject
 import tech.done.ads.player.SimidEventListener
 import timber.log.Timber
@@ -43,11 +45,20 @@ class AdDisplayContainerView @JvmOverloads constructor(
         addJavascriptInterface(SimidBridge(), "AndroidSimidBridge")
     }
 
+    private val loadingView: ProgressBar = ProgressBar(context).apply {
+        isIndeterminate = true
+        visibility = GONE
+        layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.CENTER
+        }
+    }
+
     init {
         clipChildren = false
         clipToPadding = false
 
         addView(simidWebView)
+        addView(loadingView)
     }
 
     fun setSimidEventListener(listener: SimidEventListener?) {
@@ -94,6 +105,11 @@ class AdDisplayContainerView @JvmOverloads constructor(
         simidWebView.loadUrl("about:blank")
         simidWebView.clearHistory()
         simidWebView.visibility = GONE
+    }
+
+    fun setAdLoadingVisible(visible: Boolean) {
+        loadingView.visibility = if (visible) VISIBLE else GONE
+        if (visible) loadingView.bringToFront()
     }
 
     fun sendSimidMessage(type: String, args: String = "{}") {

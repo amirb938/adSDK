@@ -73,6 +73,7 @@ class Media3ImaLikeAdBridge(
     private var savedContentItem: MediaItem? = null
     private var savedContentPositionMs: Long = 0L
     private var savedContentPlayWhenReady: Boolean = true
+    private var adDisplayContainerView: tech.done.ads.player.media3.ima.AdDisplayContainerView? = null
 
     val playerAdapter: PlayerAdapter = object : PlayerAdapter {
         override val state: StateFlow<PlayerState> = this@Media3ImaLikeAdBridge.state
@@ -123,18 +124,26 @@ class Media3ImaLikeAdBridge(
 
     private val adListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
+            if (_state.value.isInAd) {
+                adDisplayContainerView?.setAdLoadingVisible(playbackState == Player.STATE_BUFFERING)
+            }
             if (playbackState == Player.STATE_ENDED && _state.value.isInAd) {
                 AdSdkDebugLog.d(logTag, "ad ended (STATE_ENDED)")
+                adDisplayContainerView?.setAdLoadingVisible(false)
                 listeners.forEach { it.onAdEnded() }
             }
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            if (_state.value.isInAd) listeners.forEach { it.onPlayerError(error) }
+            if (_state.value.isInAd) {
+                adDisplayContainerView?.setAdLoadingVisible(false)
+                listeners.forEach { it.onPlayerError(error) }
+            }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (_state.value.isInAd) _state.value = _state.value.copy(isPlaying = isPlaying)
+            if (_state.value.isInAd && isPlaying) adDisplayContainerView?.setAdLoadingVisible(false)
         }
     }
 
@@ -175,9 +184,18 @@ class Media3ImaLikeAdBridge(
         isAttachingOverlay = true
         try {
             (adPlayerView.parent as? ViewGroup)?.removeView(adPlayerView)
+            adDisplayContainerView = null
 
             val index = parent.indexOfChild(contentPlayerView).takeIf { it >= 0 } ?: (parent.childCount - 1)
-            parent.addView(adPlayerView, index + 1)
+            val container = tech.done.ads.player.media3.ima.AdDisplayContainerView(contentPlayerView.context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                )
+            }
+            container.addView(adPlayerView)
+            parent.addView(container, index + 1)
+            adDisplayContainerView = container
 
             overlayParent = parent
             AdSdkDebugLog.d(logTag, "overlay attached as sibling parent=${parent::class.java.simpleName}")
@@ -197,6 +215,8 @@ class Media3ImaLikeAdBridge(
 
     private fun detachOverlay() {
         (adPlayerView.parent as? ViewGroup)?.removeView(adPlayerView)
+        (adDisplayContainerView?.parent as? ViewGroup)?.removeView(adDisplayContainerView)
+        adDisplayContainerView = null
         overlayParent = null
     }
 
@@ -221,6 +241,7 @@ class Media3ImaLikeAdBridge(
 
         suppressContentControllers(true)
         suppressAdController()
+        adDisplayContainerView?.setAdLoadingVisible(true)
 
         adPlayerView.visibility = View.VISIBLE
         adPlayerView.bringToFront()
@@ -248,6 +269,7 @@ class Media3ImaLikeAdBridge(
         adPlayer.stop()
         adPlayer.clearMediaItems()
         adPlayerView.visibility = View.GONE
+        adDisplayContainerView?.setAdLoadingVisible(false)
 
         suppressContentControllers(false)
 

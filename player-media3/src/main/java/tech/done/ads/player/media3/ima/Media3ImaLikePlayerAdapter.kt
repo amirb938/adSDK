@@ -136,17 +136,25 @@ internal class Media3ImaLikePlayerAdapter(
 
     private val adListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
+            if (_state.value.isInAd) {
+                adDisplayContainer.setAdLoadingVisible(playbackState == Player.STATE_BUFFERING)
+            }
             if (playbackState == Player.STATE_ENDED && _state.value.isInAd) {
+                adDisplayContainer.setAdLoadingVisible(false)
                 listeners.forEach { it.onAdEnded() }
             }
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            if (_state.value.isInAd) listeners.forEach { it.onPlayerError(error) }
+            if (_state.value.isInAd) {
+                adDisplayContainer.setAdLoadingVisible(false)
+                listeners.forEach { it.onPlayerError(error) }
+            }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (_state.value.isInAd) _state.value = _state.value.copy(isPlaying = isPlaying)
+            if (_state.value.isInAd && isPlaying) adDisplayContainer.setAdLoadingVisible(false)
             if (_state.value.isInAd && simidSessionId != null) {
                 val t = JSONObject().put("currentTime", adPlayer.currentPosition / 1000.0).toString()
                 adDisplayContainer.sendSimidMessage(if (isPlaying) "play" else "pause", t)
@@ -253,6 +261,7 @@ internal class Media3ImaLikePlayerAdapter(
         contentPlayer.pause()
 
         contentUi?.onAdStarted()
+        adDisplayContainer.setAdLoadingVisible(true)
 
         adPlayerView.visibility = View.VISIBLE
         if (showBuiltInAdOverlay) {
@@ -313,6 +322,7 @@ internal class Media3ImaLikePlayerAdapter(
             adDisplayContainer.sendSimidMessage("ended", JSONObject().put("currentTime", adPlayer.currentPosition / 1000.0).toString())
         }
         adDisplayContainer.hideSimidCreative()
+        adDisplayContainer.setAdLoadingVisible(false)
 
         adPlayer.playWhenReady = false
         adPlayer.stop()
