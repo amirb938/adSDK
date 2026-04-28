@@ -26,6 +26,10 @@ import tech.done.ads.player.PlayerState
 import tech.done.ads.player.media3.ExternalPlayerControllerHidingCommandListener
 
 class ExternalPlayerActivity : ComponentActivity() {
+    private companion object {
+        private const val TEST_START_POSITION_MS = 100 * 60 * 1000L
+    }
+
     private lateinit var player: ExoPlayer
     private var playerView: PlayerView? = null
     private var pollJob: Job? = null
@@ -45,6 +49,7 @@ class ExternalPlayerActivity : ComponentActivity() {
         player = ExoPlayer.Builder(this).build().apply {
             setMediaItem(MediaItem.fromUri(SampleConfig.Urls.CONTENT_VIDEO))
             prepare()
+//            seekTo(TEST_START_POSITION_MS)
             playWhenReady = true
         }
 

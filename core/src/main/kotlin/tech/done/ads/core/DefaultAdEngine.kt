@@ -48,6 +48,10 @@ class DefaultAdEngine(
     private val maxAdAttempts: Int = 3,
     private val adsEventListener: AdsEventListener? = null,
 ) : AdEngine {
+    private companion object {
+        private const val STARTED_POSITION_THRESHOLD_MS = 3_000L
+    }
+
 
     private val scope = CoroutineScope(SupervisorJob() + mainDispatcher)
     private var tickerJob: Job? = null
@@ -143,6 +147,33 @@ class DefaultAdEngine(
 
         scope.launch {
             val tl = timeline ?: return@launch
+            val currentPosMs = player.state.value.contentPositionMs
+
+            // If content starts from a resumed position, collapse backlog ads before current position
+            // (preroll + overdue midrolls) into a single break to avoid back-to-back ad bursts.
+            if (currentPosMs >= STARTED_POSITION_THRESHOLD_MS) {
+                val overdueMidrolls = tl.midrolls
+                    .filter {
+                        val triggerMs = it.triggerTimeMs
+                        triggerMs != null && triggerMs <= currentPosMs
+                    }
+                    .filterNot { isBreakFired(it) }
+                val overduePrerolls = if (!prerollFired) tl.preroll else emptyList()
+                val backlog = overduePrerolls + overdueMidrolls
+                if (backlog.isNotEmpty()) {
+                    val selected = backlog.maxByOrNull { it.triggerTimeMs ?: 0L }!!
+                    overdueMidrolls.forEach { markBreakFired(it) }
+                    if (overduePrerolls.isNotEmpty()) prerollFired = true
+
+                    AdSdkDebugLog.d(
+                        logTag,
+                        "Collapsing backlog ads at start posMs=$currentPosMs total=${backlog.size} selectedBreakId=${selected.breakId} selectedTrigger=${selected.triggerTimeMs}",
+                    )
+                    playBreaksSequentially(listOf(selected))
+                    return@launch
+                }
+            }
+
             if (!prerollFired && tl.preroll.isNotEmpty()) {
                 AdSdkDebugLog.d(logTag, "Triggering preroll breaks=${tl.preroll.size}")
                 playBreaksSequentially(tl.preroll)
@@ -202,17 +233,19 @@ class DefaultAdEngine(
                     val t = it.triggerTimeMs
                     t != null && t <= posMs
                 }
-                .firstOrNull { !isBreakFired(it) }
-                ?: return
+                .filterNot { isBreakFired(it) }
+            if (due.isEmpty()) return
 
-            // Mark before playback to avoid duplicate trigger races
-            // between state-flow collector and periodic poller.
-            markBreakFired(due)
+            val selected = due.maxByOrNull { it.triggerTimeMs ?: Long.MIN_VALUE } ?: return
+
+            // Mark all overdue breaks as fired before playback:
+            // this collapses backlog to one ad and avoids duplicate trigger races.
+            due.forEach { markBreakFired(it) }
             AdSdkDebugLog.d(
                 logTag,
-                "Midroll due breakId=${due.breakId} triggerTimeMs=${due.triggerTimeMs} posMs=$posMs url=${due.vastAdTagUri}",
+                "Midroll due posMs=$posMs dueCount=${due.size} selectedBreakId=${selected.breakId} selectedTrigger=${selected.triggerTimeMs} url=${selected.vastAdTagUri}",
             )
-            playBreaksSequentially(listOf(due))
+            playBreaksSequentially(listOf(selected))
         }
     }
 
