@@ -3,11 +3,14 @@ package tech.done.ads.player
 object ExternalPlayerViewControllerPolicy {
     @JvmStatic
     fun apply(playerView: Any?, inAd: Boolean) {
-        val view = playerView ?: return
+        val view = resolveInnermostPlayerView(playerView) ?: return
         setBooleanFieldIfPresent(view, "useController", !inAd)
         invokeBooleanMethodIfPresent(view, "setUseController", !inAd)
         invokeBooleanMethodIfPresent(view, "setControllerAutoShow", !inAd)
         invokeBooleanMethodIfPresent(view, "setControllerHideOnTouch", !inAd)
+        if (inAd) {
+            invokeMethodWithIntIfPresent(view, "setControllerShowTimeoutMs", 0)
+        }
         if (inAd) {
             invokeNoArgMethodIfPresent(view, "hideController")
             val controller = findControllerView(view)
@@ -28,6 +31,64 @@ object ExternalPlayerViewControllerPolicy {
             invokeBooleanMethodIfPresent(controller, "setClickable", true)
             invokeBooleanMethodIfPresent(controller, "setFocusable", true)
         }
+    }
+
+    private fun resolveInnermostPlayerView(root: Any?): Any? {
+        if (root == null) return null
+        val queue = ArrayDeque<Any>()
+        val seen = HashSet<Int>()
+        queue.add(root)
+        var fallback: Any? = null
+        while (queue.isNotEmpty()) {
+            val current = queue.removeFirst()
+            val identity = System.identityHashCode(current)
+            if (!seen.add(identity)) continue
+
+            if (looksLikePlayerView(current)) {
+                fallback = current
+                if (supportsControllerFlags(current)) return current
+            }
+
+            runCatching { current.javaClass.getMethod("getPlayerView").invoke(current) }
+                .getOrNull()
+                ?.let { queue.add(it) }
+            runCatching {
+                val f = current.javaClass.getDeclaredField("playerView")
+                f.isAccessible = true
+                f.get(current)
+            }.getOrNull()?.let { queue.add(it) }
+
+            current.javaClass.declaredFields.forEach { field ->
+                runCatching {
+                    field.isAccessible = true
+                    val value = field.get(current) ?: return@runCatching
+                    val className = value.javaClass.name
+                    if (className.startsWith("java.") || className.startsWith("kotlin.")) return@runCatching
+                    queue.add(value)
+                }
+            }
+        }
+        return fallback
+    }
+
+    private fun looksLikePlayerView(target: Any): Boolean {
+        val clazz = target.javaClass
+        val hasHideController = runCatching { clazz.getMethod("hideController") }.isSuccess
+        val hasFindViewById = runCatching {
+            clazz.getMethod("findViewById", Int::class.javaPrimitiveType)
+        }.isSuccess
+        return hasHideController && hasFindViewById
+    }
+
+    private fun supportsControllerFlags(target: Any): Boolean {
+        val clazz = target.javaClass
+        val hasSetUseController = runCatching {
+            clazz.getMethod("setUseController", Boolean::class.javaPrimitiveType)
+        }.isSuccess
+        val hasAutoShow = runCatching {
+            clazz.getMethod("setControllerAutoShow", Boolean::class.javaPrimitiveType)
+        }.isSuccess
+        return hasSetUseController && hasAutoShow
     }
 
     private fun findControllerView(playerView: Any): Any? {
@@ -55,6 +116,13 @@ object ExternalPlayerViewControllerPolicy {
         if (target == null) return
         runCatching {
             target.javaClass.getMethod(methodName, Boolean::class.javaPrimitiveType).invoke(target, value)
+        }
+    }
+
+    private fun invokeMethodWithIntIfPresent(target: Any?, methodName: String, value: Int) {
+        if (target == null) return
+        runCatching {
+            target.javaClass.getMethod(methodName, Int::class.javaPrimitiveType).invoke(target, value)
         }
     }
 
