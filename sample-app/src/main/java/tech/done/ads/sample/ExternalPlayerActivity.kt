@@ -43,16 +43,33 @@ class ExternalPlayerActivity : ComponentActivity() {
             .build()
             .also {
                 it.addAdSdkEventListener(SampleAdsEventLogger())
-                it.setContentUi(
-                    object : Media3AdsLoader.ContentUi {
-                        override fun onAdStarted() {
-                            // Notify host via interface to pause its content player.
+                it.setContentPlaybackController(
+                    object : Media3AdsLoader.ContentPlaybackController {
+                        override fun onPauseContentRequested() {
                             player.pause()
                         }
 
-                        override fun onAdEnded() {
-                            // Notify host via interface to resume content.
+                        override fun onResumeContentRequested() {
                             player.play()
+                            playerView?.hideController()
+                        }
+
+                        override fun onPauseRequested() {
+                            player.pause()
+                        }
+
+                        override fun onPlayRequested() {
+                            player.play()
+                        }
+                    },
+                )
+                it.setContentUi(
+                    object : Media3AdsLoader.ContentUi {
+                        override fun onAdStarted() {
+                            // Host can update any ad-specific UI state here.
+                        }
+
+                        override fun onAdEnded() {
                             // Keep player controller hidden after ad-driven resume.
                             playerView?.hideController()
                         }
@@ -79,7 +96,6 @@ class ExternalPlayerActivity : ComponentActivity() {
                                 PlayerView(ctx).apply {
                                     playerView = this
                                     this.player = this@ExternalPlayerActivity.player
-                                    adsLoader?.setPlayer(this@ExternalPlayerActivity.player)
                                     adsLoader?.setAdMarkersContainerView(this)
                                 }
                             },

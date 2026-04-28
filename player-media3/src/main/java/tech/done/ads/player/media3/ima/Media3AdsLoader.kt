@@ -70,6 +70,13 @@ class Media3AdsLoader private constructor(
         fun onAdEnded()
     }
 
+    interface ContentPlaybackController {
+        fun onPauseContentRequested()
+        fun onResumeContentRequested()
+        fun onPauseRequested() {}
+        fun onPlayRequested() {}
+    }
+
     interface AdPlaybackListener {
         fun onAdStarted()
         fun onAdEnded()
@@ -81,6 +88,7 @@ class Media3AdsLoader private constructor(
     private var contentPlayer: ExoPlayer? = null
     private var adDisplayContainer: AdDisplayContainerView? = null
     private var contentUi: ContentUi? = null
+    private var contentPlaybackController: ContentPlaybackController? = null
     private var adMarkersContainerView: View? = null
     private var videoSurfaceView: View? = null
 
@@ -129,6 +137,11 @@ class Media3AdsLoader private constructor(
 
     fun setContentUi(contentUi: ContentUi?) {
         this.contentUi = contentUi
+        rebuildIfReady()
+    }
+
+    fun setContentPlaybackController(controller: ContentPlaybackController?) {
+        this.contentPlaybackController = controller
         rebuildIfReady()
     }
 
@@ -187,20 +200,21 @@ class Media3AdsLoader private constructor(
         contentPlayer = null
         adDisplayContainer = null
         contentUi = null
+        contentPlaybackController = null
         adMarkersContainerView = null
         videoSurfaceView = null
     }
 
     fun requestAdsFromVMAPXml(vmapXml: String) {
         val l = adsLoader
-            ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
+            ?: error("Media3AdsLoader is not ready. Call setAdDisplayContainer first.")
         scope.launch(Dispatchers.Main.immediate) { applyAdMarkersFromVMAPXmlOrClear(vmapXml) }
         l.requestAdsFromVMAPXml(vmapXml)
     }
 
     fun requestAds(adTagUri: String, timeoutMs: Long = 10_000L) {
         val l = adsLoader
-            ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
+            ?: error("Media3AdsLoader is not ready. Call setAdDisplayContainer first.")
         scope.launch(network.dispatcher) {
             val resp = network.get(adTagUri, timeoutMs = timeoutMs)
             if (!resp.isSuccessful) error("Failed to load adTagUri. code=${resp.code} url=$adTagUri")
@@ -218,12 +232,11 @@ class Media3AdsLoader private constructor(
 
     fun start() {
         val l = adsLoader
-            ?: error("Media3AdsLoader is not ready. Call setPlayer/setAdDisplayContainer first.")
+            ?: error("Media3AdsLoader is not ready. Call setAdDisplayContainer first.")
         l.start()
     }
 
     private fun rebuildIfReady() {
-        val player = contentPlayer ?: return
         val container = adDisplayContainer ?: return
 
         check(Looper.getMainLooper() == Looper.myLooper()) {
@@ -234,7 +247,7 @@ class Media3AdsLoader private constructor(
 
         adapter?.release()
         adapter = Media3ImaLikePlayerAdapter(
-            contentPlayer = player,
+            contentPlayer = contentPlayer,
             adDisplayContainer = container,
             contentPlayerView = adMarkersContainerView as? androidx.media3.ui.PlayerView,
             scope = scope,
@@ -244,6 +257,7 @@ class Media3AdsLoader private constructor(
                     override fun onAdEnded() = host.onAdEnded()
                 }
             },
+            contentPlaybackController = contentPlaybackController,
             uiConfig = uiConfig,
             showBuiltInAdOverlay = showBuiltInAdOverlay,
         )

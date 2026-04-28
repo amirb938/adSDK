@@ -32,11 +32,12 @@ import java.util.UUID
 
 
 internal class Media3ImaLikePlayerAdapter(
-    private val contentPlayer: ExoPlayer,
+    private val contentPlayer: ExoPlayer?,
     private val adDisplayContainer: AdDisplayContainerView,
     private val contentPlayerView: PlayerView? = null,
     private val scope: CoroutineScope,
     private val contentUi: ContentUi? = null,
+    private val contentPlaybackController: Media3AdsLoader.ContentPlaybackController? = null,
     private val pollIntervalMs: Long = 250L,
     private val uiConfig: AdSdkUiConfig? = null,
     private val showBuiltInAdOverlay: Boolean = true,
@@ -110,11 +111,19 @@ internal class Media3ImaLikePlayerAdapter(
 
         override fun resumeContent() = endAdAndResumeContent()
         override fun pause() {
-            if (_state.value.isInAd) adPlayer.pause() else contentPlayer.pause()
+            if (_state.value.isInAd) {
+                adPlayer.pause()
+            } else {
+                contentPlayer?.pause() ?: contentPlaybackController?.onPauseRequested()
+            }
         }
 
         override fun play() {
-            if (_state.value.isInAd) adPlayer.play() else contentPlayer.play()
+            if (_state.value.isInAd) {
+                adPlayer.play()
+            } else {
+                contentPlayer?.play() ?: contentPlaybackController?.onPlayRequested()
+            }
         }
     }
 
@@ -163,7 +172,7 @@ internal class Media3ImaLikePlayerAdapter(
     }
 
     init {
-        contentPlayer.addListener(contentListener)
+        contentPlayer?.addListener(contentListener)
         adPlayer.addListener(adListener)
         if (showBuiltInAdOverlay) {
             uiConfig?.let { adOverlayView.applyUiConfig(it) }
@@ -222,7 +231,7 @@ internal class Media3ImaLikePlayerAdapter(
     fun release() {
         runCatching { pollJob?.cancel() }
         runCatching { simidHandshakeJob?.cancel() }
-        runCatching { contentPlayer.removeListener(contentListener) }
+        runCatching { contentPlayer?.removeListener(contentListener) }
         runCatching { adPlayer.removeListener(adListener) }
         runCatching { adDisplayContainer.setSimidEventListener(null) }
         runCatching { adDisplayContainer.hideSimidCreative() }
@@ -252,13 +261,17 @@ internal class Media3ImaLikePlayerAdapter(
         suppressContentController(inAd = true)
 
         if (!_state.value.isInAd) {
-            savedContentItem = contentPlayer.currentMediaItem
-            savedContentPositionMs = contentPlayer.currentPosition
-            savedContentPlayWhenReady = contentPlayer.playWhenReady
+            savedContentItem = contentPlayer?.currentMediaItem
+            savedContentPositionMs = contentPlayer?.currentPosition ?: 0L
+            savedContentPlayWhenReady = contentPlayer?.playWhenReady ?: true
         }
 
-        contentPlayer.playWhenReady = false
-        contentPlayer.pause()
+        if (contentPlayer != null) {
+            contentPlayer.playWhenReady = false
+            contentPlayer.pause()
+        } else {
+            contentPlaybackController?.onPauseContentRequested()
+        }
 
         contentUi?.onAdStarted()
         adDisplayContainer.setAdLoadingVisible(true)
@@ -338,13 +351,17 @@ internal class Media3ImaLikePlayerAdapter(
         contentUi?.onAdEnded()
 
         val item = savedContentItem
-        if (item != null) {
-            contentPlayer.setMediaItem(item)
-            contentPlayer.prepare()
-            contentPlayer.seekTo(savedContentPositionMs)
-            contentPlayer.playWhenReady = savedContentPlayWhenReady
+        if (contentPlayer != null) {
+            if (item != null) {
+                contentPlayer.setMediaItem(item)
+                contentPlayer.prepare()
+                contentPlayer.seekTo(savedContentPositionMs)
+                contentPlayer.playWhenReady = savedContentPlayWhenReady
+            } else {
+                contentPlayer.playWhenReady = savedContentPlayWhenReady
+            }
         } else {
-            contentPlayer.playWhenReady = savedContentPlayWhenReady
+            contentPlaybackController?.onResumeContentRequested()
         }
 
         _state.value = _state.value.copy(
@@ -387,10 +404,9 @@ internal class Media3ImaLikePlayerAdapter(
                     }
                     listeners.forEach { it.onAdProgress(pos, dur) }
                 } else {
-                    val pos = contentPlayer.currentPosition
-                    val dur = contentPlayer.duration.takeIf { it > 0 }
-                    _state.value =
-                        _state.value.copy(contentPositionMs = pos, contentDurationMs = dur)
+                    val pos = contentPlayer?.currentPosition ?: _state.value.contentPositionMs
+                    val dur = contentPlayer?.duration?.takeIf { it > 0 } ?: _state.value.contentDurationMs
+                    _state.value = _state.value.copy(contentPositionMs = pos, contentDurationMs = dur)
                     if (showBuiltInAdOverlay) {
                         adOverlayView.render(
                             inAd = false,
