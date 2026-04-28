@@ -41,6 +41,16 @@ class Media3ImaLikeAdBridge(
     private val adPlayerView: PlayerView = PlayerView(contentPlayerView.context).apply {
         player = adPlayer
         useController = false
+        setControllerAutoShow(false)
+        setControllerHideOnTouch(false)
+        hideController()
+        // Make built-in controller visually empty in case Android/Media3 forces it visible.
+        findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.apply {
+            alpha = 0f
+            isClickable = false
+            isFocusable = false
+            isEnabled = false
+        }
         layoutParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -210,6 +220,7 @@ class Media3ImaLikeAdBridge(
         contentPlayer.pause()
 
         suppressContentControllers(true)
+        suppressAdController()
 
         adPlayerView.visibility = View.VISIBLE
         adPlayerView.bringToFront()
@@ -265,15 +276,9 @@ class Media3ImaLikeAdBridge(
             contentPlayerView.hideController()
             contentPlayerView.setControllerAutoShow(false)
             contentPlayerView.setControllerHideOnTouch(false)
-            contentPlayerView.setOnTouchListener { _, _ -> true }
-            contentPlayerView.isFocusable = false
-            contentPlayerView.isClickable = false
         } else {
-            contentPlayerView.setOnTouchListener(null)
             contentPlayerView.setControllerAutoShow(true)
             contentPlayerView.setControllerHideOnTouch(true)
-            contentPlayerView.isFocusable = true
-            contentPlayerView.isClickable = true
         }
     }
 
@@ -283,6 +288,7 @@ class Media3ImaLikeAdBridge(
             while (true) {
                 val inAd = _state.value.isInAd
                 if (inAd) {
+                    suppressAdController()
                     val pos = adPlayer.currentPosition
                     val dur = adPlayer.duration.takeIf { it > 0 }
                     _state.value = _state.value.copy(adPositionMs = pos, adDurationMs = dur)
@@ -294,6 +300,19 @@ class Media3ImaLikeAdBridge(
                 }
                 delay(pollIntervalMs)
             }
+        }
+    }
+
+    private fun suppressAdController() {
+        adPlayerView.useController = false
+        adPlayerView.setControllerAutoShow(false)
+        adPlayerView.setControllerHideOnTouch(false)
+        adPlayerView.hideController()
+        adPlayerView.findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.apply {
+            alpha = 0f
+            isClickable = false
+            isFocusable = false
+            isEnabled = false
         }
     }
 }

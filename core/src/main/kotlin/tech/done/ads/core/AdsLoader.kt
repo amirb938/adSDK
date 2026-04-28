@@ -68,14 +68,34 @@ class AdsLoader private constructor(
 
         @JvmStatic
         fun createWithExternalPlayer(
-            commands: PlayerCommandListener,
+            commands: PlayerCommandListener? = null,
             network: NetworkLayer? = null,
             tracking: TrackingEngine? = null,
             scope: CoroutineScope? = null,
             debugLogging: Boolean = false,
             adsEventListener: AdsEventListener? = null,
         ): ExternalSetup {
-            val playerAdapter = ExternalPlayerAdapter(commands)
+            val commandListener = commands ?: object : PlayerCommandListener {
+                override fun onPlayAdRequested(
+                    mediaUri: String,
+                    adSkipOffsetMs: Long?,
+                    simidInteractiveCreativeUrl: String?,
+                ) {
+                }
+
+                override fun onResumeContentRequested() {
+                }
+
+                override fun onPauseRequested() {
+                }
+
+                override fun onPlayRequested() {
+                }
+
+                override fun onSeekingEnabledChanged(enabled: Boolean) {
+                }
+            }
+            val playerAdapter = ExternalPlayerAdapter(commandListener)
             val loader = AdsLoader.builder()
                 .playerAdapter(playerAdapter)
                 .adsEventListener(adsEventListener)

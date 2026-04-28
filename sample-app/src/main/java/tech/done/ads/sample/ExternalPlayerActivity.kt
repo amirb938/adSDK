@@ -1,22 +1,15 @@
 package tech.done.ads.sample
 
 import android.os.Bundle
+import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
@@ -30,9 +23,11 @@ import kotlinx.coroutines.launch
 import tech.done.ads.core.AdsLoader
 import tech.done.ads.player.PlayerCommandListener
 import tech.done.ads.player.PlayerState
+import tech.done.ads.player.media3.ExternalPlayerControllerHidingCommandListener
 
 class ExternalPlayerActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
+    private var playerView: PlayerView? = null
     private var pollJob: Job? = null
 
     private var inAd: Boolean = false
@@ -54,7 +49,11 @@ class ExternalPlayerActivity : ComponentActivity() {
         }
 
         val commands = object : PlayerCommandListener {
-            override fun onPlayAdRequested(mediaUri: String, adSkipOffsetMs: Long?, simidInteractiveCreativeUrl: String?) {
+            override fun onPlayAdRequested(
+                mediaUri: String,
+                adSkipOffsetMs: Long?,
+                simidInteractiveCreativeUrl: String?
+            ) {
                 if (!inAd) {
                     savedContentItem = player.currentMediaItem
                     savedContentPositionMs = player.currentPosition
@@ -93,8 +92,13 @@ class ExternalPlayerActivity : ComponentActivity() {
             }
         }
 
+        val libraryCommands = ExternalPlayerControllerHidingCommandListener(
+            delegate = commands,
+            playerViewProvider = { playerView },
+        )
+
         setup = AdsLoader.createWithExternalPlayer(
-            commands = commands,
+            commands = libraryCommands,
             network = SampleNetworkLayer(this),
             debugLogging = true,
         ).also { it.adsLoader.addAdSdkEventListener(SampleAdsEventLogger()) }
@@ -121,46 +125,50 @@ class ExternalPlayerActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                BackHandler { finish() }
+                BackHandler {
+                    if (inAd) {
+                        finish()
+                        return@BackHandler
+                    }
+                    val pv = playerView
+                    if (pv != null && !pv.isControllerFullyVisible) {
+                        pv.showController()
+                    } else {
+                        finish()
+                    }
+                }
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    Box(Modifier.fillMaxSize()) {
-                        AndroidView(
-                            modifier = Modifier.fillMaxSize(),
-                            factory = { ctx -> PlayerView(ctx).apply { this.player = this@ExternalPlayerActivity.player } },
-                        )
-
-                        Column(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Text(text = "ExternalPlayerActivity", style = MaterialTheme.typography.titleMedium)
-                            Button(
-                                onClick = { startAdsFromVmapAsset() },
-                            ) {
-                                Text("Reload Ads (VMAP asset)")
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                playerView = this
+                                this.player = this@ExternalPlayerActivity.player
+                                useController = true
+                                isFocusable = true
+                                isFocusableInTouchMode = true
+                                descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+                                // On TV/D-pad devices, give initial focus to player controls.
+                                post { requestFocus() }
                             }
                         }
+                    )
 
-                        // Keep external-player sample behavior aligned with other scenario screens:
-                        // open screen -> load VMAP -> start ad engine.
-                        LaunchedEffect(Unit) {
-                            if (hasStartedAds) return@LaunchedEffect
-                            hasStartedAds = true
-                            startAdsFromVmapAsset()
-                        }
+                    // Keep external-player sample behavior aligned with other scenario screens:
+                    // open screen -> load ad tag URL -> start ad engine.
+                    LaunchedEffect(Unit) {
+                        if (hasStartedAds) return@LaunchedEffect
+                        hasStartedAds = true
+                        startAdsFromUrl()
                     }
                 }
             }
         }
     }
 
-    private fun startAdsFromVmapAsset() {
+    private fun startAdsFromUrl() {
         val l = setup?.adsLoader ?: return
-        val xml = assets.open(SampleConfig.Assets.VMAP).bufferedReader().use { it.readText() }
-        l.requestAdsFromVMAPXml(xml)
+        l.requestAds(SampleConfig.Urls.ADS_TAG)
         l.start()
     }
 
@@ -205,6 +213,7 @@ class ExternalPlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        playerView = null
         runCatching { pollJob?.cancel() }
         runCatching { setup?.adsLoader?.release() }
         setup = null

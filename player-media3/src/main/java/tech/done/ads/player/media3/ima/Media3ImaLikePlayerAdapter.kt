@@ -34,6 +34,7 @@ import java.util.UUID
 internal class Media3ImaLikePlayerAdapter(
     private val contentPlayer: ExoPlayer,
     private val adDisplayContainer: AdDisplayContainerView,
+    private val contentPlayerView: PlayerView? = null,
     private val scope: CoroutineScope,
     private val contentUi: ContentUi? = null,
     private val pollIntervalMs: Long = 250L,
@@ -60,6 +61,16 @@ internal class Media3ImaLikePlayerAdapter(
     private val adPlayerView: PlayerView = PlayerView(adDisplayContainer.context).apply {
         player = adPlayer
         useController = false
+        setControllerAutoShow(false)
+        setControllerHideOnTouch(false)
+        hideController()
+        // Make built-in controller visually empty in case Android/Media3 forces it visible.
+        findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.apply {
+            alpha = 0f
+            isClickable = false
+            isFocusable = false
+            isEnabled = false
+        }
         visibility = View.GONE
         layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -77,6 +88,7 @@ internal class Media3ImaLikePlayerAdapter(
     private val listeners = LinkedHashSet<PlayerListener>()
 
     private var pollJob: Job? = null
+    private var restoreContentUseController: Boolean = true
 
     private var savedContentItem: MediaItem? = null
     private var savedContentPositionMs: Long = 0L
@@ -171,6 +183,34 @@ internal class Media3ImaLikePlayerAdapter(
         startPolling()
     }
 
+    private fun suppressAdController() {
+        adPlayerView.useController = false
+        adPlayerView.setControllerAutoShow(false)
+        adPlayerView.setControllerHideOnTouch(false)
+        adPlayerView.hideController()
+        adPlayerView.findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.apply {
+            alpha = 0f
+            isClickable = false
+            isFocusable = false
+            isEnabled = false
+        }
+    }
+
+    private fun suppressContentController(inAd: Boolean) {
+        val pv = contentPlayerView ?: return
+        if (inAd) {
+            restoreContentUseController = pv.useController
+            pv.useController = false
+            pv.hideController()
+            pv.setControllerAutoShow(false)
+            pv.setControllerHideOnTouch(false)
+        } else {
+            pv.useController = restoreContentUseController
+            pv.setControllerAutoShow(true)
+            pv.setControllerHideOnTouch(true)
+        }
+    }
+
     fun release() {
         runCatching { pollJob?.cancel() }
         runCatching { simidHandshakeJob?.cancel() }
@@ -200,6 +240,8 @@ internal class Media3ImaLikePlayerAdapter(
         if (adPlayerView.player !== adPlayer) {
             adPlayerView.player = adPlayer
         }
+        suppressAdController()
+        suppressContentController(inAd = true)
 
         if (!_state.value.isInAd) {
             savedContentItem = contentPlayer.currentMediaItem
@@ -278,6 +320,7 @@ internal class Media3ImaLikePlayerAdapter(
         runCatching { adPlayerView.player = null }
         runCatching { adPlayer.clearVideoSurface() }
         adPlayerView.visibility = View.GONE
+        suppressContentController(inAd = false)
         if (showBuiltInAdOverlay) {
             adOverlayView.setVisible(false)
         }
@@ -309,6 +352,7 @@ internal class Media3ImaLikePlayerAdapter(
             while (true) {
                 val inAd = _state.value.isInAd
                 if (inAd) {
+                    suppressAdController()
                     val pos = adPlayer.currentPosition
                     val dur = adPlayer.duration.takeIf { it > 0 }
                     _state.value = _state.value.copy(adPositionMs = pos, adDurationMs = dur)

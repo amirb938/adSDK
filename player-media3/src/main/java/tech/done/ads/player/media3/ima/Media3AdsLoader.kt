@@ -236,6 +236,7 @@ class Media3AdsLoader private constructor(
         adapter = Media3ImaLikePlayerAdapter(
             contentPlayer = player,
             adDisplayContainer = container,
+            contentPlayerView = adMarkersContainerView as? androidx.media3.ui.PlayerView,
             scope = scope,
             contentUi = contentUi?.let { host ->
                 object : Media3ImaLikePlayerAdapter.ContentUi {

@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import tech.done.ads.core.internal.AdSdkDebugLog
 import tech.done.ads.network.NetworkLayer
@@ -58,6 +60,7 @@ class DefaultAdEngine(
 
     private var timeline: AdTimeline? = null
     private val firedMidrollIds = mutableSetOf<String>()
+    private val midrollTriggerMutex = Mutex()
     private var prerollFired = false
     private var postrollFired = false
 
@@ -193,20 +196,24 @@ class DefaultAdEngine(
     }
 
     private suspend fun triggerMidrollsIfNeeded(tl: AdTimeline, posMs: Long) {
-        val due = tl.midrolls
-            .filter {
-                val t = it.triggerTimeMs
-                t != null && t <= posMs
-            }
-            .firstOrNull { !isBreakFired(it) }
-            ?: return
+        midrollTriggerMutex.withLock {
+            val due = tl.midrolls
+                .filter {
+                    val t = it.triggerTimeMs
+                    t != null && t <= posMs
+                }
+                .firstOrNull { !isBreakFired(it) }
+                ?: return
 
-        AdSdkDebugLog.d(
-            logTag,
-            "Midroll due breakId=${due.breakId} triggerTimeMs=${due.triggerTimeMs} posMs=$posMs url=${due.vastAdTagUri}",
-        )
-        playBreaksSequentially(listOf(due))
-        markBreakFired(due)
+            // Mark before playback to avoid duplicate trigger races
+            // between state-flow collector and periodic poller.
+            markBreakFired(due)
+            AdSdkDebugLog.d(
+                logTag,
+                "Midroll due breakId=${due.breakId} triggerTimeMs=${due.triggerTimeMs} posMs=$posMs url=${due.vastAdTagUri}",
+            )
+            playBreaksSequentially(listOf(due))
+        }
     }
 
     private fun isBreakFired(b: ScheduledBreak): Boolean {
@@ -316,17 +323,12 @@ class DefaultAdEngine(
         val dur = first.durationMs
         if (dur != null && dur <= 0L) return
 
+        val mediaCandidates = first.mediaFiles.map { it.uri }.filter { it.isNotBlank() }.distinct()
+        if (mediaCandidates.isEmpty()) return
+
         AdSdkDebugLog.d(
             logTag,
-            "Selected ad mediaFiles=${first.mediaFiles.size} durationMs=${first.durationMs} trackingKeys=${first.trackingEvents.keys.sorted()}",
-        )
-
-        val mediaUri = first.mediaFiles.first().uri
-        dispatchAdsEvent(
-            adsEventListener,
-            AdsEventKind.VAST_LOADED,
-            breakId,
-            AdsEventPayload(durationMs = first.durationMs, mediaUri = mediaUri),
+            "Selected ad mediaFiles=${first.mediaFiles.size} candidates=${mediaCandidates.size} durationMs=${first.durationMs} trackingKeys=${first.trackingEvents.keys.sorted()}",
         )
 
         val tracker = VASTTrackingSession(
@@ -352,51 +354,81 @@ class DefaultAdEngine(
             }
         AdSdkDebugLog.d(
             logTag,
-            "playAd mediaUri=$mediaUri bufferTimeoutMs=$bufferTimeoutMs skipOffsetMs=$skipOffsetMs simidUrl=${simidUrl != null}",
+            "playAd candidates=${mediaCandidates.size} bufferTimeoutMs=$bufferTimeoutMs skipOffsetMs=$skipOffsetMs simidUrl=${simidUrl != null}",
         )
 
         dispatchAdsEvent(adsEventListener, AdsEventKind.AD_STARTED, breakId)
-        player.playAd(mediaUri, skipOffsetMs, simidUrl)
-
-        val playStateJob = scope.launch {
-            player.state
-                .map { it.isInAd to it.isPlaying }
-                .distinctUntilChanged()
-                .collect { (inAd, isPlaying) ->
-                    if (!inAd) return@collect
-                    tracker.onIsPlayingChanged(isPlaying)
-                }
-        }
-
         val waitMs = (dur?.plus(2_000L) ?: 30_000L).coerceAtLeast(5_000L)
         AdSdkDebugLog.d(logTag, "awaitAdEnd maxPlayingMs=$waitMs")
-        try {
-            awaitAdEnd(
-                maxPlayingMs = waitMs,
-                maxWallClockMs = waitMs + bufferTimeoutMs,
-                onProgress = { posMs, durationMs ->
-                    tracker.onProgress(posMs, durationMs)
-                    dispatchAdsEvent(
-                        adsEventListener,
-                        AdsEventKind.AD_PROGRESS,
-                        breakId,
-                        AdsEventPayload(positionMs = posMs, durationMs = durationMs),
-                    )
-                },
-                onEnded = {
-                    scope.launch {
-                        tracker.fireComplete()
-                        dispatchAdsEvent(adsEventListener, AdsEventKind.AD_COMPLETED, breakId)
-                    }
-                },
-                onError = { t ->
-                    scope.launch { tracker.fireError() }
-                    dispatchAdsEvent(adsEventListener, AdsEventKind.AD_ERROR, breakId, AdsEventPayload(error = t))
-                },
+
+        var lastError: Throwable? = null
+        mediaCandidates.forEachIndexed { index, mediaUri ->
+            val isLastCandidate = index == mediaCandidates.lastIndex
+            dispatchAdsEvent(
+                adsEventListener,
+                AdsEventKind.VAST_LOADED,
+                breakId,
+                AdsEventPayload(durationMs = first.durationMs, mediaUri = mediaUri),
             )
-        } finally {
-            playStateJob.cancel()
+            AdSdkDebugLog.d(
+                logTag,
+                "playAd candidate=${index + 1}/${mediaCandidates.size} mediaUri=$mediaUri"
+            )
+            player.playAd(mediaUri, skipOffsetMs, simidUrl)
+
+            val playStateJob = scope.launch {
+                player.state
+                    .map { it.isInAd to it.isPlaying }
+                    .distinctUntilChanged()
+                    .collect { (inAd, isPlaying) ->
+                        if (!inAd) return@collect
+                        tracker.onIsPlayingChanged(isPlaying)
+                    }
+            }
+
+            try {
+                awaitAdEnd(
+                    maxPlayingMs = waitMs,
+                    maxWallClockMs = waitMs + bufferTimeoutMs,
+                    onProgress = { posMs, durationMs ->
+                        tracker.onProgress(posMs, durationMs)
+                        dispatchAdsEvent(
+                            adsEventListener,
+                            AdsEventKind.AD_PROGRESS,
+                            breakId,
+                            AdsEventPayload(positionMs = posMs, durationMs = durationMs),
+                        )
+                    },
+                    onEnded = {
+                        scope.launch {
+                            tracker.fireComplete()
+                            dispatchAdsEvent(adsEventListener, AdsEventKind.AD_COMPLETED, breakId)
+                        }
+                    },
+                    onError = { t ->
+                        if (isLastCandidate) {
+                            scope.launch { tracker.fireError() }
+                            dispatchAdsEvent(adsEventListener, AdsEventKind.AD_ERROR, breakId, AdsEventPayload(error = t))
+                        }
+                    },
+                )
+                return
+            } catch (t: Throwable) {
+                lastError = t
+                AdSdkDebugLog.e(
+                    logTag,
+                    "playAd failed candidate=${index + 1}/${mediaCandidates.size} breakId=$breakId mediaUri=$mediaUri",
+                    t,
+                )
+                if (!isLastCandidate) {
+                    AdSdkDebugLog.d(logTag, "Trying next media candidate for breakId=$breakId")
+                }
+            } finally {
+                playStateJob.cancel()
+            }
         }
+
+        throw lastError ?: IllegalStateException("No playable media candidate for breakId=$breakId")
     }
 
     private suspend fun awaitAdEnd(
