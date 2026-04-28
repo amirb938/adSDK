@@ -23,7 +23,6 @@ import kotlinx.coroutines.launch
 import tech.done.ads.core.AdsLoader
 import tech.done.ads.player.PlayerCommandListener
 import tech.done.ads.player.PlayerState
-import tech.done.ads.player.media3.ExternalPlayerControllerHidingCommandListener
 
 class ExternalPlayerActivity : ComponentActivity() {
     private companion object {
@@ -97,13 +96,8 @@ class ExternalPlayerActivity : ComponentActivity() {
             }
         }
 
-        val libraryCommands = ExternalPlayerControllerHidingCommandListener(
-            delegate = commands,
-            playerViewProvider = { playerView },
-        )
-
         setup = AdsLoader.createWithExternalPlayer(
-            commands = libraryCommands,
+            commands = commands,
             network = SampleNetworkLayer(this),
             debugLogging = true,
         ).also { it.adsLoader.addAdSdkEventListener(SampleAdsEventLogger()) }

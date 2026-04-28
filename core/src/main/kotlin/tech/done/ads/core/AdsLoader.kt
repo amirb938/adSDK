@@ -18,6 +18,7 @@ import tech.done.ads.parser.impl.VMAPPullParser
 import tech.done.ads.parser.model.VMAPResponse
 import tech.done.ads.player.AdsEventListener
 import tech.done.ads.player.AdsEventMulticaster
+import tech.done.ads.player.ExternalPlayerControllerPolicyCommandListener
 import tech.done.ads.player.ExternalPlayerAdapter
 import tech.done.ads.player.PlayerAdapter
 import tech.done.ads.player.PlayerCommandListener
@@ -95,7 +96,10 @@ class AdsLoader private constructor(
                 override fun onSeekingEnabledChanged(enabled: Boolean) {
                 }
             }
-            val playerAdapter = ExternalPlayerAdapter(commandListener)
+            val policyAwareCommandListener = ExternalPlayerControllerPolicyCommandListener(
+                delegate = commandListener,
+            )
+            val playerAdapter = ExternalPlayerAdapter(policyAwareCommandListener)
             val loader = AdsLoader.builder()
                 .playerAdapter(playerAdapter)
                 .adsEventListener(adsEventListener)
