@@ -149,7 +149,14 @@ internal class AdOverlayView @JvmOverloads constructor(
         val controls = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            layoutDirection = LAYOUT_DIRECTION_LTR
 
+            addView(
+                circularTimerView,
+                LinearLayout.LayoutParams(dp(40), dp(40)).apply {
+                    marginEnd = dp(6)
+                },
+            )
             addView(
                 skipButton,
                 LinearLayout.LayoutParams(
@@ -158,20 +165,11 @@ internal class AdOverlayView @JvmOverloads constructor(
                 ),
             )
             addView(
-                circularTimerView,
-                LinearLayout.LayoutParams(dp(40), dp(40)).apply {
-                    marginEnd = dp(6)
-                },
-            )
-
-            addView(
                 skipInText,
                 LinearLayout.LayoutParams(
                     LayoutParams.WRAP_CONTENT,
                     LayoutParams.WRAP_CONTENT,
-                ).apply {
-                    marginEnd = dp(6)
-                },
+                ),
             )
         }
 
@@ -260,14 +258,17 @@ internal class AdOverlayView @JvmOverloads constructor(
                 }
             if (skipInSec != null) {
                 skipInText.visibility = VISIBLE
-                skipInText.text = context.getString(
+                val skipInMessage = context.getString(
                     R.string.adsdk_ad_skip_in_seconds,
                     skipInSec,
                 )
+                skipInText.text = skipInMessage
+                skipInText.contentDescription = skipInMessage
                 circularTimerView.visibility = GONE
             } else {
                 skipInText.visibility = GONE
                 skipInText.text = ""
+                skipInText.contentDescription = null
                 circularTimerView.visibility = VISIBLE
             }
         }
@@ -294,6 +295,7 @@ internal class AdOverlayView @JvmOverloads constructor(
             setTextColor(Color.WHITE)
             textSize = 12f
             gravity = Gravity.CENTER
+            importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         private var progressFraction: Float = 0f
 
@@ -313,6 +315,9 @@ internal class AdOverlayView @JvmOverloads constructor(
 
         fun setTimeText(seconds: Int?) {
             label.text = seconds?.toString().orEmpty()
+            contentDescription = seconds?.let { s ->
+                context.getString(R.string.adsdk_a11y_ad_seconds_remaining, s)
+            }
         }
 
         fun setProgress(positionMs: Long, durationMs: Long?) {
