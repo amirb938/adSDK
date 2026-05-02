@@ -4,8 +4,8 @@ object SampleConfig {
     object Urls {
         const val CONTENT_VIDEO =
             "https://dls7.iran-gamecenter-host.com/DonyayeSerial/movies/2010/tt1375666/SoftSub/Inception.2010.720p.BluRay.SoftSub.MkvCage.DonyayeSerial.mkv"
-//        const val ADS_TAG = "https://amirb938.s3.ir-thr-at1.arvanstorage.ir/ads%2Fads_skipable.xml"
-        const val ADS_TAG = "https://ads.kianoosh.dev/ads/ads"
+        const val ADS_TAG = "https://amirb938.s3.ir-thr-at1.arvanstorage.ir/ads%2Fads_skipable.xml"
+//        const val ADS_TAG = "https://ads.kianoosh.dev/ads/ads"
     }
 
     object Assets {

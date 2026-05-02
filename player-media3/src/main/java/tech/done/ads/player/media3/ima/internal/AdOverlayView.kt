@@ -3,11 +3,15 @@ package tech.done.ads.player.media3.ima.internal
 import android.content.res.ColorStateList
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.util.AttributeSet
 import android.util.TypedValue
+import android.text.TextUtils
 import android.view.Gravity
+import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -30,34 +34,48 @@ internal class AdOverlayView @JvmOverloads constructor(
             resources.displayMetrics,
         ).toInt()
 
+    private fun createRoundedPill(
+        fillColor: Int,
+        strokeWidthDp: Int = 0,
+        strokeColor: Int = Color.TRANSPARENT,
+        cornerRadiusDp: Int = 40,
+    ): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(cornerRadiusDp).toFloat()
+            setColor(fillColor)
+            if (strokeWidthDp > 0) {
+                setStroke(dp(strokeWidthDp), strokeColor)
+            }
+        }
+
     private fun createSkipButtonBackground(
         accentColor: Int?,
         cornerRadiusDp: Int?,
     ): StateListDrawable {
-        val accent = accentColor ?: 0xFFFFC107.toInt()
-        val radiusPx = dp(cornerRadiusDp ?: 10).toFloat()
-
+        val accent = accentColor ?: 0xFF111111.toInt()
+        val radiusDp = cornerRadiusDp ?: 40
         fun shape(
             fillColor: Int,
             strokeWidthDp: Int,
             strokeColor: Int,
         ): GradientDrawable =
-            GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = radiusPx
-                setColor(fillColor)
-                setStroke(dp(strokeWidthDp), strokeColor)
-            }
+            createRoundedPill(
+                fillColor = fillColor,
+                strokeWidthDp = strokeWidthDp,
+                strokeColor = strokeColor,
+                cornerRadiusDp = radiusDp,
+            )
 
         val focused = shape(
-            fillColor = 0xAA000000.toInt(),
+            fillColor = Color.WHITE,
             strokeWidthDp = 2,
             strokeColor = accent,
         )
         val normal = shape(
-            fillColor = 0x88000000.toInt(),
+            fillColor = Color.WHITE,
             strokeWidthDp = 1,
-            strokeColor = 0x66FFFFFF.toInt(),
+            strokeColor = 0x33FFFFFF,
         )
 
         return StateListDrawable().apply {
@@ -77,12 +95,22 @@ internal class AdOverlayView @JvmOverloads constructor(
         setTextColor(Color.WHITE)
         textSize = 14f
         text = ""
-        setShadowLayer(4f, 0f, 0f, Color.BLACK)
+        gravity = Gravity.CENTER
+        visibility = INVISIBLE
+        minWidth = dp(68)
+        minHeight = dp(40)
+        maxLines = 1
+        ellipsize = TextUtils.TruncateAt.END
+        setPadding(dp(16), dp(10), dp(16), dp(10))
+        background = createRoundedPill(fillColor = 0x99000000.toInt(), cornerRadiusDp = 40)
+    }
+
+    private val circularTimerView = CircularTimerView(context).apply {
         visibility = INVISIBLE
     }
 
     private val skipButton = Button(context).apply {
-        text = context.getString(R.string.adsdk_skip)
+        text = context.getString(R.string.adsdk_skip_ad)
         setTextColor(
             ColorStateList(
                 arrayOf(
@@ -90,18 +118,20 @@ internal class AdOverlayView @JvmOverloads constructor(
                     intArrayOf()
                 ),
                 intArrayOf(
-                    Color.WHITE,
-                    0x99FFFFFF.toInt()
+                    Color.BLACK,
+                    0x66000000
                 )
             )
         )
-        setShadowLayer(4f, 0f, 0f, Color.BLACK)
         isAllCaps = false
-        visibility = INVISIBLE
-        minHeight = dp(36)
+        visibility = GONE
+        minWidth = dp(72)
+        minHeight = dp(40)
+        maxLines = 1
+        ellipsize = TextUtils.TruncateAt.END
         isFocusable = true
         isFocusableInTouchMode = true
-        setPadding(dp(16), dp(8), dp(16), dp(8))
+        setPadding(dp(16), dp(10), dp(16), dp(10))
         background = createSkipButtonBackground(null, null)
     }
 
@@ -114,30 +144,56 @@ internal class AdOverlayView @JvmOverloads constructor(
     init {
         isClickable = false
         isFocusable = false
+        val isRtl = resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
+
+        val controls = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+
+            addView(
+                skipButton,
+                LinearLayout.LayoutParams(
+                    LayoutParams.WRAP_CONTENT,
+                    LayoutParams.WRAP_CONTENT,
+                ),
+            )
+            addView(
+                circularTimerView,
+                LinearLayout.LayoutParams(dp(40), dp(40)).apply {
+                    marginEnd = dp(6)
+                },
+            )
+
+            addView(
+                skipInText,
+                LinearLayout.LayoutParams(
+                    LayoutParams.WRAP_CONTENT,
+                    LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    marginEnd = dp(6)
+                },
+            )
+        }
 
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(12))
             minimumHeight = dp(56)
-            addView(remainingText, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-
-            val right = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            if (isRtl) {
                 addView(
-                    skipInText,
-                    LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
+                    controls,
+                    LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT),
                 )
+                addView(remainingText, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+            } else {
+
+                addView(remainingText, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
                 addView(
-                    skipButton,
-                    LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
+                    controls,
+                    LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT),
                 )
             }
-            addView(
-                right,
-                LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
-            )
         }
 
         addView(
@@ -155,6 +211,7 @@ internal class AdOverlayView @JvmOverloads constructor(
             remainingText.typeface = tf
             skipInText.typeface = tf
             skipButton.typeface = tf
+            circularTimerView.typeface = tf
         }
         skipButton.background =
             createSkipButtonBackground(config.accentColor, config.buttonCornerRadiusDp)
@@ -177,13 +234,17 @@ internal class AdOverlayView @JvmOverloads constructor(
         }
 
         val canSkip = skipOffsetMs != null && adPositionMs >= skipOffsetMs
-        val isSkippableAd = skipOffsetMs != null
+        val remainingSec = adDurationMs?.let { dur ->
+            ceil(((dur - adPositionMs).coerceAtLeast(0L)) / 1000.0).toInt()
+        }
+
         if (skipOffsetMs == null) {
-            skipButton.visibility = INVISIBLE
-            skipInText.visibility = INVISIBLE
+            skipButton.visibility = GONE
+            skipInText.visibility = GONE
             skipInText.text = ""
+            circularTimerView.visibility = VISIBLE
         } else {
-            skipButton.visibility = if (canSkip) VISIBLE else INVISIBLE
+            skipButton.visibility = if (canSkip) VISIBLE else GONE
             if (canSkip && !lastCanSkip) {
                 skipButton.post {
                     if (visibility == VISIBLE && skipButton.visibility == VISIBLE && !skipButton.hasFocus()) {
@@ -199,34 +260,88 @@ internal class AdOverlayView @JvmOverloads constructor(
                 }
             if (skipInSec != null) {
                 skipInText.visibility = VISIBLE
-                skipInText.text =
-                    context.getString(
-                        R.string.adsdk_ad_skip_in_seconds,
-                        skipInSec,
-                    )
+                skipInText.text = context.getString(
+                    R.string.adsdk_ad_skip_in_seconds,
+                    skipInSec,
+                )
+                circularTimerView.visibility = GONE
             } else {
-                skipInText.visibility = INVISIBLE
+                skipInText.visibility = GONE
                 skipInText.text = ""
+                circularTimerView.visibility = VISIBLE
             }
         }
         lastCanSkip = canSkip
+        circularTimerView.setTimeText(remainingSec)
+        circularTimerView.setProgress(adPositionMs, adDurationMs)
 
-        val remainingSec = adDurationMs?.let { dur ->
-            ceil(((dur - adPositionMs).coerceAtLeast(0L)) / 1000.0).toInt()
+        remainingText.text = ""
+    }
+
+    private class CircularTimerView(context: Context) : FrameLayout(context) {
+        private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = dp(context, 2).toFloat()
+            color = Color.WHITE
+            strokeCap = Paint.Cap.ROUND
+        }
+        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = 0x99000000.toInt()
+        }
+        private val arcRect = RectF()
+        private val label = TextView(context).apply {
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            gravity = Gravity.CENTER
+        }
+        private var progressFraction: Float = 0f
+
+        var typeface = label.typeface
+            set(value) {
+                field = value
+                label.typeface = value
+            }
+
+        init {
+            setWillNotDraw(false)
+            addView(
+                label,
+                LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+            )
         }
 
-        // Standard skippable UX (similar to IMA): while skip countdown is shown,
-        // avoid rendering a second timer label ("ad remaining ...") to prevent duplicate timers.
-        remainingText.text =
-            if (isSkippableAd) {
-                ""
-            } else {
-                remainingSec?.let {
-                    context.getString(
-                        R.string.adsdk_ad_remaining_seconds,
-                        it,
-                    )
-                }.orEmpty()
-            }
+        fun setTimeText(seconds: Int?) {
+            label.text = seconds?.toString().orEmpty()
+        }
+
+        fun setProgress(positionMs: Long, durationMs: Long?) {
+            progressFraction =
+                if (durationMs == null || durationMs <= 0L) {
+                    0f
+                } else {
+                    (positionMs.coerceAtLeast(0L).toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                }
+            invalidate()
+        }
+
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            super.onDraw(canvas)
+            val cx = width / 2f
+            val cy = height / 2f
+            val radius = (minOf(width, height) / 2f) - ringPaint.strokeWidth
+            canvas.drawCircle(cx, cy, radius, fillPaint)
+            arcRect.set(cx - radius, cy - radius, cx + radius, cy + radius)
+            canvas.drawArc(arcRect, -90f, 360f * progressFraction, false, ringPaint)
+        }
+
+        companion object {
+            private fun dp(context: Context, value: Int): Int =
+                TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP,
+                    value.toFloat(),
+                    context.resources.displayMetrics,
+                ).toInt()
+        }
     }
 }

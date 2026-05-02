@@ -11,10 +11,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.res.ResourcesCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import tech.done.ads.player.media3.ima.AdDisplayContainerView
+import tech.done.ads.player.media3.ima.AdSdkUiConfig
 import tech.done.ads.player.media3.ima.Media3AdsLoader
 
 class ExternalPlayerActivity : ComponentActivity() {
@@ -42,6 +44,12 @@ class ExternalPlayerActivity : ComponentActivity() {
             .debugLogging(true)
             .build()
             .also {
+                it.setUiConfig( AdSdkUiConfig(
+                    customTypeface = ResourcesCompat.getFont(
+                        this,
+                        R.font.peyda_fa_num_medium
+                    )
+                ))
                 it.addAdSdkEventListener(SampleAdsEventLogger())
                 it.setContentPlaybackBridge(
                     object : Media3AdsLoader.ContentPlaybackBridge {
