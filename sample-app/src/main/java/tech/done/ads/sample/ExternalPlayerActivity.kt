@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.res.ResourcesCompat
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -55,9 +56,11 @@ class ExternalPlayerActivity : ComponentActivity() {
                     object : Media3AdsLoader.ContentPlaybackBridge {
                         override fun onPauseContentRequested() {
                             player.pause()
+                            setContentVideoEnabled(false)
                         }
 
                         override fun onResumeContentRequested() {
+                            setContentVideoEnabled(true)
                             player.play()
                         }
 
@@ -129,6 +132,18 @@ class ExternalPlayerActivity : ComponentActivity() {
         val l = adsLoader ?: return
         l.requestAds(SampleConfig.Urls.ADS_TAG)
         l.start()
+    }
+
+    /**
+     * Toggles the content player's video track. Disabling it releases the underlying
+     * MediaCodec/AVC decoder so the ad player can allocate its own instance on devices
+     * (and emulators) that only allow a single concurrent AVC decoder.
+     */
+    private fun setContentVideoEnabled(enabled: Boolean) {
+        player.trackSelectionParameters = player.trackSelectionParameters
+            .buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !enabled)
+            .build()
     }
 
     override fun onDestroy() {

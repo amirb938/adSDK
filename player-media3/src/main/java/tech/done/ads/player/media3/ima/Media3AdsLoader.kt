@@ -27,6 +27,7 @@ import tech.done.ads.player.media3.ima.internal.AdPlaybackSignal
 import tech.done.ads.player.media3.network.SampleNetworkLayer
 import tech.done.ads.tracking.RetryingTrackingEngine
 import tech.done.ads.tracking.TrackingEngine
+import java.io.IOException
 import java.util.concurrent.CopyOnWriteArraySet
 
 class Media3AdsLoader private constructor(
@@ -243,6 +244,8 @@ class Media3AdsLoader private constructor(
         l.requestAdsFromVMAPXml(vmapXml)
     }
 
+
+    @Throws(IOException::class)
     fun requestAds(adTagUri: String, timeoutMs: Long = 10_000L) {
         val l = adsLoader
             ?: error("Media3AdsLoader is not ready. Call setAdDisplayContainer first.")

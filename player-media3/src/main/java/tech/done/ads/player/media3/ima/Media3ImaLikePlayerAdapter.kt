@@ -1,14 +1,15 @@
 package tech.done.ads.player.media3.ima
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
-import android.annotation.SuppressLint
 import android.os.Looper
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -17,16 +18,16 @@ import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
-import tech.done.ads.player.SimidEventListener
 import tech.done.ads.player.PlayerAdapter
 import tech.done.ads.player.PlayerListener
 import tech.done.ads.player.PlayerState
+import tech.done.ads.player.SimidEventListener
 import tech.done.ads.player.media3.ima.internal.AdOverlayView
 import timber.log.Timber
 import java.util.UUID
@@ -197,6 +198,13 @@ internal class Media3ImaLikePlayerAdapter(
     private fun suppressContentController(inAd: Boolean) {
         // Preferred: hide controller via host bridge, without needing host PlayerView.
         // UX requirement: after an ad-driven resume, keep controller hidden until host decides otherwise.
+        contentPlayer?.let { player ->
+            player.trackSelectionParameters = player.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, inAd)
+                .build()
+        }
+
         contentPlaybackBridge?.setContentControllerVisible(false)
 
         // Fallback (legacy): if bridge isn't provided, try to hide via the (optional) PlayerView we were given.
