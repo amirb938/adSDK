@@ -1,6 +1,6 @@
 package tech.done.ads.parser.internal
 
-import org.kxml2.io.KXmlSerializer
+import android.util.Xml
 import org.xmlpull.v1.XmlPullParser
 import java.io.StringWriter
 
@@ -31,12 +31,11 @@ internal fun XmlPullParser.skipTag() {
     }
 }
 
-
 internal fun XmlPullParser.readElementXml(): String {
     require(eventType == XmlPullParser.START_TAG) { "Expected START_TAG but was event=$eventType name=$name" }
 
     val writer = StringWriter()
-    val serializer = KXmlSerializer().apply {
+    val serializer = Xml.newSerializer().apply {
         setOutput(writer)
     }
 
@@ -44,7 +43,11 @@ internal fun XmlPullParser.readElementXml(): String {
         val tag = name ?: ""
         serializer.startTag(null, tag)
         for (i in 0 until attributeCount) {
-            serializer.attribute(getAttributeNamespace(i), getAttributeName(i), getAttributeValue(i))
+            serializer.attribute(
+                getAttributeNamespace(i),
+                getAttributeName(i),
+                getAttributeValue(i)
+            )
         }
     }
 
@@ -62,14 +65,14 @@ internal fun XmlPullParser.readElementXml(): String {
                 writeStartTag()
                 depth++
             }
+
             XmlPullParser.END_TAG -> {
                 writeEndTag()
                 depth--
             }
+
             XmlPullParser.TEXT -> {
                 serializer.text(text ?: "")
-            }
-            else -> {
             }
         }
     }
