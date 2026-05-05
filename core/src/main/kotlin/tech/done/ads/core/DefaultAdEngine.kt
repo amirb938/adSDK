@@ -438,6 +438,12 @@ class DefaultAdEngine(
                             dispatchAdsEvent(adsEventListener, AdsEventKind.AD_COMPLETED, breakId)
                         }
                     },
+                    onSkippedEarly = {
+                        scope.launch {
+                            tracker.fireSkip()
+                            dispatchAdsEvent(adsEventListener, AdsEventKind.AD_SKIPPED, breakId)
+                        }
+                    },
                     onError = { t ->
                         if (isLastCandidate) {
                             scope.launch { tracker.fireError() }
@@ -469,6 +475,7 @@ class DefaultAdEngine(
         maxWallClockMs: Long,
         onProgress: (positionMs: Long, durationMs: Long?) -> Unit,
         onEnded: () -> Unit,
+        onSkippedEarly: () -> Unit,
         onError: (Throwable) -> Unit,
     ) {
         val done = CompletableDeferred<Unit>()
@@ -528,6 +535,7 @@ class DefaultAdEngine(
                         logTag,
                         "awaitAdEnd: ad exited without onAdEnded (e.g. user skip); completing wait",
                     )
+                    onSkippedEarly()
                     done.complete(Unit)
                 }
             }
@@ -569,6 +577,7 @@ class DefaultAdEngine(
             fireOnce("impression", TrackingEvent.Impression, "impression")
 
         suspend fun fireStart() = fireOnce("start", TrackingEvent.Start, "start")
+        suspend fun fireSkip() = fireOnce("skip", TrackingEvent.Skip, "skip")
         suspend fun fireComplete() = fireOnce("complete", TrackingEvent.Complete, "complete")
         suspend fun fireError() = fireOnce("error", TrackingEvent.Error, "error")
 

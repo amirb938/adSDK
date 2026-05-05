@@ -160,15 +160,31 @@ class AdsLoader private constructor(
     }
 
     fun requestAds(adTagUri: String, timeoutMs: Long = 10_000L) {
+        val onError: (Exception) -> Unit = { e ->
+            scope.launch(Dispatchers.Main.immediate) {
+                adsEventMulticaster.onAdError(null, e)
+            }
+        }
         scope.launch(network.dispatcher) {
-            val resp = network.get(adTagUri, timeoutMs = timeoutMs)
-            if (!resp.isSuccessful) error("Failed to load adTagUri. code=${resp.code} url=$adTagUri")
+            val resp = try {
+                network.get(adTagUri, timeoutMs = timeoutMs)
+            } catch (e: Exception) {
+                onError(e)
+                return@launch
+            }
+            if (!resp.isSuccessful) {
+                onError(IllegalStateException("Failed to load adTagUri. code=${resp.code} url=$adTagUri"))
+                return@launch
+            }
             val xml = resp.body.orEmpty()
             val kind = detectXmlKind(xml)
             val vmapXml = when (kind) {
                 XmlKind.VMAP -> xml
                 XmlKind.VAST -> wrapVASTAsVMAPPreroll(xml)
-                XmlKind.Unknown -> error("Unknown ad response. Expected VMAP or VAST. url=$adTagUri")
+                XmlKind.Unknown -> {
+                    onError(IllegalStateException("Unknown ad response. Expected VMAP or VAST. url=$adTagUri"))
+                    return@launch
+                }
             }
             withContext(Dispatchers.Main.immediate) {
                 engine.loadVMAP(vmapXml)

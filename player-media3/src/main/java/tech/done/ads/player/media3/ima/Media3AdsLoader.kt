@@ -27,7 +27,6 @@ import tech.done.ads.player.media3.ima.internal.AdPlaybackSignal
 import tech.done.ads.player.media3.network.SampleNetworkLayer
 import tech.done.ads.tracking.RetryingTrackingEngine
 import tech.done.ads.tracking.TrackingEngine
-import java.io.IOException
 import java.util.concurrent.CopyOnWriteArraySet
 
 class Media3AdsLoader private constructor(
@@ -244,20 +243,38 @@ class Media3AdsLoader private constructor(
         l.requestAdsFromVMAPXml(vmapXml)
     }
 
-
-    @Throws(IOException::class)
     fun requestAds(adTagUri: String, timeoutMs: Long = 10_000L) {
-        val l = adsLoader
-            ?: error("Media3AdsLoader is not ready. Call setAdDisplayContainer first.")
+        val onError: (Exception) -> Unit = { e ->
+            scope.launch(Dispatchers.Main.immediate) {
+                adapterPlayerListener?.onPlayerError(e)
+                adSdkEventMulticaster.onAdError(null, e)
+            }
+        }
+
+        val l = adsLoader ?: run {
+            onError(IllegalStateException("Media3AdsLoader is not ready. Call setAdDisplayContainer first."))
+            return
+        }
         scope.launch(network.dispatcher) {
-            val resp = network.get(adTagUri, timeoutMs = timeoutMs)
-            if (!resp.isSuccessful) error("Failed to load adTagUri. code=${resp.code} url=$adTagUri")
+            val resp = try {
+                network.get(adTagUri, timeoutMs = timeoutMs)
+            } catch (e: Exception) {
+                onError(e)
+                return@launch
+            }
+            if (!resp.isSuccessful) {
+                onError(IllegalStateException("Failed to load adTagUri. code=${resp.code} url=$adTagUri"))
+                return@launch
+            }
             val xml = resp.body.orEmpty()
             val kind = detectXmlKind(xml)
             val vmapXml = when (kind) {
                 XmlKind.VMAP -> xml
                 XmlKind.VAST -> wrapVASTAsVMAPPreroll(xml)
-                XmlKind.Unknown -> error("Unknown ad response. Expected VMAP or VAST. url=$adTagUri")
+                XmlKind.Unknown -> {
+                    onError(IllegalStateException("Unknown ad response. Expected VMAP or VAST. url=$adTagUri"))
+                    return@launch
+                }
             }
             withContext(Dispatchers.Main.immediate) { applyAdMarkersFromVMAPXmlOrClear(vmapXml) }
             l.requestAdsFromVMAPXml(vmapXml)

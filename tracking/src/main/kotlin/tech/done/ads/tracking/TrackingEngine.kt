@@ -17,6 +17,7 @@ enum class TrackingEvent {
     Progress,
     Pause,
     Resume,
+    Skip,
     Complete,
     Error,
 }
