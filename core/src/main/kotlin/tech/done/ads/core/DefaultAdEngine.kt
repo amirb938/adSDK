@@ -33,6 +33,7 @@ import tech.done.ads.scheduler.AdTimeline
 import tech.done.ads.scheduler.ScheduledBreak
 import tech.done.ads.tracking.TrackingEngine
 import tech.done.ads.tracking.TrackingEvent
+import kotlin.math.max
 import kotlin.math.min
 
 class DefaultAdEngine(
@@ -45,6 +46,7 @@ class DefaultAdEngine(
     private val mainDispatcher: CoroutineDispatcher,
     private val tickIntervalMs: Long = 250L,
     private val bufferTimeoutMs: Long = 15_000L,
+    private val simidMaxWallClockMs: Long = 5 * 60_000L,
     private val maxAdAttempts: Int = 3,
     private val adsEventListener: AdsEventListener? = null,
 ) : AdEngine {
@@ -385,6 +387,7 @@ class DefaultAdEngine(
             } else {
                 null
             }
+        val isSimid = simidUrl != null
         AdSdkDebugLog.d(
             logTag,
             "playAd candidates=${mediaCandidates.size} bufferTimeoutMs=$bufferTimeoutMs skipOffsetMs=$skipOffsetMs simidUrl=${simidUrl != null}",
@@ -392,7 +395,16 @@ class DefaultAdEngine(
 
         dispatchAdsEvent(adsEventListener, AdsEventKind.AD_STARTED, breakId)
         val waitMs = (dur?.plus(2_000L) ?: 30_000L).coerceAtLeast(5_000L)
-        AdSdkDebugLog.d(logTag, "awaitAdEnd maxPlayingMs=$waitMs")
+        val maxWallClockMs = computeMaxWallClockMs(
+            waitMs = waitMs,
+            bufferTimeoutMs = bufferTimeoutMs,
+            isSimid = isSimid,
+            simidMaxWallClockMs = simidMaxWallClockMs,
+        )
+        AdSdkDebugLog.d(
+            logTag,
+            "awaitAdEnd maxPlayingMs=$waitMs maxWallClockMs=$maxWallClockMs isSimid=$isSimid"
+        )
 
         var lastError: Throwable? = null
         mediaCandidates.forEachIndexed { index, mediaUri ->
@@ -422,7 +434,7 @@ class DefaultAdEngine(
             try {
                 awaitAdEnd(
                     maxPlayingMs = waitMs,
-                    maxWallClockMs = waitMs + bufferTimeoutMs,
+                    maxWallClockMs = maxWallClockMs,
                     onProgress = { posMs, durationMs ->
                         tracker.onProgress(posMs, durationMs)
                         dispatchAdsEvent(
@@ -725,4 +737,14 @@ class DefaultAdEngine(
         AdSdkDebugLog.e(logTag, "fetchWithRetry failed url=$url attempts=$maxAdAttempts", last)
         throw last ?: IllegalStateException("Failed to fetch: $url")
     }
+}
+
+internal fun computeMaxWallClockMs(
+    waitMs: Long,
+    bufferTimeoutMs: Long,
+    isSimid: Boolean,
+    simidMaxWallClockMs: Long,
+): Long {
+    val defaultWallClockMs = waitMs + bufferTimeoutMs
+    return if (isSimid) max(defaultWallClockMs, simidMaxWallClockMs) else defaultWallClockMs
 }
