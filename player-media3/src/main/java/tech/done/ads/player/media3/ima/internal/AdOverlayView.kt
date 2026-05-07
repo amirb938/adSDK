@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
+import android.animation.ValueAnimator
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.text.TextUtils
@@ -53,30 +54,15 @@ internal class AdOverlayView @JvmOverloads constructor(
         accentColor: Int?,
         cornerRadiusDp: Int?,
     ): StateListDrawable {
-        val accent = accentColor ?: 0xFF111111.toInt()
         val radiusDp = cornerRadiusDp ?: 40
-        fun shape(
-            fillColor: Int,
-            strokeWidthDp: Int,
-            strokeColor: Int,
-        ): GradientDrawable =
+        fun shape(fillColor: Int): GradientDrawable =
             createRoundedPill(
                 fillColor = fillColor,
-                strokeWidthDp = strokeWidthDp,
-                strokeColor = strokeColor,
                 cornerRadiusDp = radiusDp,
             )
 
-        val focused = shape(
-            fillColor = Color.WHITE,
-            strokeWidthDp = 2,
-            strokeColor = accent,
-        )
-        val normal = shape(
-            fillColor = Color.WHITE,
-            strokeWidthDp = 1,
-            strokeColor = 0x33FFFFFF,
-        )
+        val focused = shape(fillColor = Color.WHITE)
+        val normal = shape(fillColor = Color.WHITE)
 
         return StateListDrawable().apply {
             addState(intArrayOf(android.R.attr.state_focused), focused)
@@ -102,7 +88,10 @@ internal class AdOverlayView @JvmOverloads constructor(
         maxLines = 1
         ellipsize = TextUtils.TruncateAt.END
         setPadding(dp(16), dp(10), dp(16), dp(10))
-        background = createRoundedPill(fillColor = 0x99000000.toInt(), cornerRadiusDp = 40)
+        background = createRoundedPill(
+            fillColor = 0xB3121212.toInt(),
+            cornerRadiusDp = 40,
+        )
     }
 
     private val circularTimerView = CircularTimerView(context).apply {
@@ -154,7 +143,7 @@ internal class AdOverlayView @JvmOverloads constructor(
             addView(
                 circularTimerView,
                 LinearLayout.LayoutParams(dp(40), dp(40)).apply {
-                    marginEnd = dp(6)
+                    marginEnd = dp(8)
                 },
             )
             addView(
@@ -198,6 +187,9 @@ internal class AdOverlayView @JvmOverloads constructor(
             row,
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
                 gravity = Gravity.BOTTOM
+                marginEnd = dp(24)
+                marginStart = dp(24)
+                bottomMargin = dp(24)
             },
         )
 
@@ -280,24 +272,28 @@ internal class AdOverlayView @JvmOverloads constructor(
     }
 
     private class CircularTimerView(context: Context) : FrameLayout(context) {
-        private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        private val ringTrackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = dp(context, 2).toFloat()
-            color = Color.WHITE
+            strokeWidth = dp(context, 4).toFloat()
+            color = 0x66FFFFFF
             strokeCap = Paint.Cap.ROUND
         }
-        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            color = 0x99000000.toInt()
+        private val ringProgressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = dp(context, 4).toFloat()
+            color = Color.WHITE
+            strokeCap = Paint.Cap.ROUND
         }
         private val arcRect = RectF()
         private val label = TextView(context).apply {
             setTextColor(Color.WHITE)
-            textSize = 12f
+            textSize = 14f
             gravity = Gravity.CENTER
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         private var progressFraction: Float = 0f
+        private var animatedProgressFraction: Float = 0f
+        private var progressAnimator: ValueAnimator? = null
 
         var typeface = label.typeface
             set(value) {
@@ -321,23 +317,33 @@ internal class AdOverlayView @JvmOverloads constructor(
         }
 
         fun setProgress(positionMs: Long, durationMs: Long?) {
-            progressFraction =
+            val newProgress =
                 if (durationMs == null || durationMs <= 0L) {
                     0f
                 } else {
                     (positionMs.coerceAtLeast(0L).toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
                 }
-            invalidate()
+            if (newProgress == progressFraction && progressAnimator?.isRunning != true) return
+            progressFraction = newProgress
+            progressAnimator?.cancel()
+            progressAnimator = ValueAnimator.ofFloat(animatedProgressFraction, progressFraction).apply {
+                duration = 180L
+                addUpdateListener { animator ->
+                    animatedProgressFraction = animator.animatedValue as Float
+                    invalidate()
+                }
+                start()
+            }
         }
 
         override fun onDraw(canvas: android.graphics.Canvas) {
             super.onDraw(canvas)
             val cx = width / 2f
             val cy = height / 2f
-            val radius = (minOf(width, height) / 2f) - ringPaint.strokeWidth
-            canvas.drawCircle(cx, cy, radius, fillPaint)
+            val radius = (minOf(width, height) / 2f) - (ringProgressPaint.strokeWidth / 2f)
             arcRect.set(cx - radius, cy - radius, cx + radius, cy + radius)
-            canvas.drawArc(arcRect, -90f, 360f * progressFraction, false, ringPaint)
+            canvas.drawArc(arcRect, 0f, 360f, false, ringTrackPaint)
+            canvas.drawArc(arcRect, -90f, 360f * animatedProgressFraction, false, ringProgressPaint)
         }
 
         companion object {
